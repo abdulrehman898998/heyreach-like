@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Play, Pause, Eye, Edit, Copy, Download, Terminal, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, Play, Pause, Eye, Edit, Copy, Trash2, Terminal, ChevronUp, ChevronDown } from "lucide-react";
 import { SiInstagram, SiFacebook } from "react-icons/si";
 import NewCampaignModal from "@/components/modals/new-campaign-modal";
 
@@ -155,6 +155,38 @@ export default function Campaigns() {
       toast({
         title: "Error",
         description: "Failed to pause campaign",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete campaign mutation
+  const deleteCampaignMutation = useMutation({
+    mutationFn: async (campaignId: number) => {
+      await apiRequest("DELETE", `/api/campaigns/${campaignId}`);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Campaign Deleted",
+        description: "Campaign has been deleted successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error as Error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to delete campaign",
         variant: "destructive",
       });
     },
@@ -328,19 +360,47 @@ export default function Campaigns() {
                             <Play className="w-3 h-3" />
                           </Button>
                         ) : null}
-                        <Button size="sm" variant="ghost">
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={() => window.open(`/campaigns/${campaign.id}`, '_blank')}
+                          title="View details"
+                        >
                           <Eye className="w-3 h-3" />
                         </Button>
-                        <Button size="sm" variant="ghost">
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={() => toast({ title: "Edit Feature", description: "Campaign editing coming soon!" })}
+                          title="Edit campaign"
+                        >
                           <Edit className="w-3 h-3" />
                         </Button>
                       </div>
                       <div className="flex items-center space-x-1">
-                        <Button size="sm" variant="ghost">
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={() => {
+                            navigator.clipboard.writeText(`Campaign: ${campaign.name}\nPlatform: ${campaign.platform}\nProgress: ${campaign.messagesSent}/${campaign.totalTargets}`);
+                            toast({ title: "Copied", description: "Campaign details copied to clipboard" });
+                          }}
+                          title="Copy details"
+                        >
                           <Copy className="w-3 h-3" />
                         </Button>
-                        <Button size="sm" variant="ghost">
-                          <Download className="w-3 h-3" />
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          onClick={() => {
+                            if (confirm(`Are you sure you want to delete "${campaign.name}"? This action cannot be undone.`)) {
+                              deleteCampaignMutation.mutate(campaign.id);
+                            }
+                          }}
+                          disabled={deleteCampaignMutation.isPending}
+                          title="Delete campaign"
+                        >
+                          <Trash2 className="w-3 h-3" />
                         </Button>
                       </div>
                     </div>

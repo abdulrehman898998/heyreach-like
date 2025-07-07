@@ -259,7 +259,7 @@ export default function Accounts() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Social Media Accounts</h1>
-            <p className="text-slate-600">Manage your Instagram and Facebook accounts for automation</p>
+            <p className="text-slate-600">Add your Instagram and Facebook accounts to send automated messages. Your credentials are encrypted and stored securely.</p>
           </div>
           <Dialog open={isAddAccountModalOpen} onOpenChange={setIsAddAccountModalOpen}>
             <DialogTrigger asChild>
@@ -367,7 +367,8 @@ export default function Accounts() {
               </div>
               <h3 className="text-lg font-semibold text-slate-900 mb-2">No accounts connected</h3>
               <p className="text-slate-600 text-center mb-4">
-                Add your Instagram and Facebook accounts to start automating your outreach
+                Add your Instagram and Facebook accounts to start automating your outreach.<br/>
+                <span className="text-amber-600 font-medium text-sm">Note: For Instagram reply tracking, your account must be linked to a Facebook Business Page.</span>
               </p>
               <Button 
                 onClick={() => setIsAddAccountModalOpen(true)}
@@ -404,7 +405,7 @@ export default function Accounts() {
                       <div className="flex items-center space-x-2 mt-1">
                         <Input
                           type={showPasswords[account.id] ? "text" : "password"}
-                          value="••••••••••"
+                          value={showPasswords[account.id] ? Buffer.from(account.password, 'base64').toString() : "••••••••••"}
                           readOnly
                           className="flex-1"
                         />
@@ -412,6 +413,7 @@ export default function Accounts() {
                           size="sm"
                           variant="ghost"
                           onClick={() => togglePasswordVisibility(account.id)}
+                          title={showPasswords[account.id] ? "Hide password" : "Show password"}
                         >
                           {showPasswords[account.id] ? 
                             <EyeOff className="w-4 h-4" /> : 

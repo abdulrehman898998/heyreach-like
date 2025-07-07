@@ -497,6 +497,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete('/api/campaigns/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const campaignId = parseInt(req.params.id);
+      
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign || campaign.userId !== userId) {
+        return res.status(404).json({ message: "Campaign not found" });
+      }
+
+      // Stop automation if running
+      if (campaign.status === 'running') {
+        automationService.pauseCampaign(campaignId);
+      }
+
+      await storage.deleteCampaign(campaignId);
+      await storage.createActivityLog({
+        userId,
+        action: 'campaign_deleted',
+        details: `Deleted campaign: ${campaign.name}`,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting campaign:", error);
+      res.status(500).json({ message: "Failed to delete campaign" });
+    }
+  });
+
   // Analytics routes
   app.get('/api/analytics/stats', isAuthenticated, async (req: any, res) => {
     try {

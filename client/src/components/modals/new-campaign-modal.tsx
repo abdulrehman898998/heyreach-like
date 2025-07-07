@@ -92,7 +92,7 @@ export default function NewCampaignModal({ open, onOpenChange }: NewCampaignModa
         <DialogHeader>
           <DialogTitle>Create New Campaign</DialogTitle>
           <p className="text-sm text-slate-600 mt-1">
-            Set up a new automation campaign for Instagram or Facebook
+            Create an automated campaign to send personalized messages to your target profiles using data from Google Sheets.
           </p>
         </DialogHeader>
         <Form {...form}>
@@ -139,21 +139,36 @@ export default function NewCampaignModal({ open, onOpenChange }: NewCampaignModa
               name="googleSheetId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Google Sheet</FormLabel>
-                  <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value?.toString()}>
+                  <FormLabel>Google Sheet Data Source</FormLabel>
+                  <Select 
+                    onValueChange={(value) => field.onChange(parseInt(value))} 
+                    value={field.value?.toString() || ""}
+                    key={field.value} // Force re-render when value changes
+                  >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a Google Sheet" />
+                        <SelectValue placeholder={googleSheets?.length > 0 ? "Choose your Google Sheet" : "No Google Sheets connected"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {googleSheets?.map((sheet: any) => (
-                        <SelectItem key={sheet.id} value={sheet.id.toString()}>
-                          {sheet.name}
+                      {googleSheets?.length > 0 ? (
+                        googleSheets.map((sheet: any) => (
+                          <SelectItem key={sheet.id} value={sheet.id.toString()}>
+                            {sheet.name} ({sheet.range || 'A:B'})
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="" disabled>
+                          Connect a Google Sheet first
                         </SelectItem>
-                      ))}
+                      )}
                     </SelectContent>
                   </Select>
+                  {googleSheets?.length === 0 && (
+                    <p className="text-sm text-amber-600">
+                      Go to Google Sheets page to connect your data source first.
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -165,14 +180,18 @@ export default function NewCampaignModal({ open, onOpenChange }: NewCampaignModa
                 name="messagesPerAccount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Messages per Account</FormLabel>
+                    <FormLabel>Messages per Account (Daily Limit)</FormLabel>
                     <FormControl>
                       <Input 
                         type="number" 
+                        placeholder="50"
                         {...field} 
                         onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                       />
                     </FormControl>
+                    <p className="text-xs text-slate-500">
+                      Recommended: 30-50 messages per account per day to avoid limits
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -186,10 +205,14 @@ export default function NewCampaignModal({ open, onOpenChange }: NewCampaignModa
                     <FormControl>
                       <Input 
                         type="number" 
+                        placeholder="30"
                         {...field} 
                         onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                       />
                     </FormControl>
+                    <p className="text-xs text-slate-500">
+                      Minimum 5 seconds. Higher delays (30-60s) appear more natural and reduce detection risk
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

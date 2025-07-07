@@ -37,8 +37,7 @@ export class InstagramBot {
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
-          '--disable-gpu',
-          `--user-data-dir=${userDataDir}` // Persistent user data
+          '--disable-gpu'
         ]
       };
 
@@ -49,9 +48,10 @@ export class InstagramBot {
       }
 
       console.log(`🔄 Using persistent profile: ${userDataDir}`);
-      this.browser = await chromium.launch(launchOptions);
+      // Use launchPersistentContext for user data persistence
+      this.browser = await chromium.launchPersistentContext(userDataDir, launchOptions);
 
-      this.page = await this.browser.newPage();
+      this.page = this.browser.pages()[0] || await this.browser.newPage();
       
       // Set user agent
       await this.page.setUserAgent(
