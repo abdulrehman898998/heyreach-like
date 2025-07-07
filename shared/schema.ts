@@ -118,7 +118,20 @@ export const messages = pgTable("messages", {
   status: messageStatusEnum("status").default("pending"),
   sentAt: timestamp("sent_at"),
   errorMessage: text("error_message"),
+  instagramMessageId: text("instagram_message_id"), // Store Instagram's message ID for reply tracking
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Customer replies to our messages
+export const replies = pgTable("replies", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").notNull().references(() => messages.id, { onDelete: "cascade" }),
+  instagramUserId: text("instagram_user_id").notNull(), // Customer's Instagram-scoped ID
+  content: text("content"),
+  attachments: text("attachments").array(), // Array of attachment URLs
+  replyToMessageId: text("reply_to_message_id"), // Instagram message ID this is replying to
+  receivedAt: timestamp("received_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 
@@ -192,7 +205,7 @@ export const campaignTargetsRelations = relations(campaignTargets, ({ one, many 
   messages: many(messages),
 }));
 
-export const messagesRelations = relations(messages, ({ one }) => ({
+export const messagesRelations = relations(messages, ({ one, many }) => ({
   campaign: one(campaigns, {
     fields: [messages.campaignId],
     references: [campaigns.id],
@@ -204,6 +217,14 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   target: one(campaignTargets, {
     fields: [messages.targetId],
     references: [campaignTargets.id],
+  }),
+  replies: many(replies),
+}));
+
+export const repliesRelations = relations(replies, ({ one }) => ({
+  message: one(messages, {
+    fields: [replies.messageId], 
+    references: [messages.id],
   }),
 }));
 
@@ -247,6 +268,9 @@ export type InsertProxy = typeof proxies.$inferInsert;
 
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = typeof activityLogs.$inferInsert;
+
+export type Reply = typeof replies.$inferSelect;
+export type InsertReply = typeof replies.$inferInsert;
 
 // Schemas
 export const insertSocialAccountSchema = createInsertSchema(socialAccounts).omit({

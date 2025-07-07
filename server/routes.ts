@@ -6,6 +6,7 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { automationService } from "./services/automationService";
 import { googleSheetsService } from "./services/googleSheetsService";
 import { BrowserSetup } from "./utils/browserSetup";
+import { handleInstagramWebhook, verifyInstagramWebhook } from "./routes/webhooks";
 import {
   insertSocialAccountSchema,
   insertGoogleSheetSchema,
@@ -15,6 +16,10 @@ import {
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Instagram webhook routes (must be before auth middleware)
+  app.get('/api/webhooks/instagram', verifyInstagramWebhook);
+  app.post('/api/webhooks/instagram', handleInstagramWebhook);
+
   // Auth middleware
   await setupAuth(app);
 

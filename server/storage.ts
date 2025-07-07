@@ -72,10 +72,17 @@ export interface IStorage {
   createActivityLog(log: InsertActivityLog): Promise<ActivityLog>;
   getActivityLogsByUser(userId: string, limit?: number): Promise<ActivityLog[]>;
 
+  // Replies  
+  createReply(reply: InsertReply): Promise<Reply>;
+  getRepliesByMessage(messageId: number): Promise<Reply[]>;
+  getRepliesByCampaign(campaignId: number): Promise<Reply[]>;
+  getMessagesByInstagramId(instagramMessageId: string): Promise<Message[]>;
+
   // Analytics
   getUserStats(userId: string): Promise<{
     totalMessagesSent: number;
     activeCampaigns: number;
+    totalRepliesReceived: number;
   }>;
 }
 
@@ -279,10 +286,32 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
   }
 
+  async createReply(reply: InsertReply): Promise<Reply> {
+    const [newReply] = await db.insert(replies).values(reply).returning();
+    return newReply;
+  }
+
+  async getRepliesByMessage(messageId: number): Promise<Reply[]> {
+    return await db.select().from(replies).where(eq(replies.messageId, messageId));
+  }
+
+  async getRepliesByCampaign(campaignId: number): Promise<Reply[]> {
+    return await db.select()
+      .from(replies)
+      .innerJoin(messages, eq(messages.id, replies.messageId))
+      .where(eq(messages.campaignId, campaignId));
+  }
+
+  async getMessagesByInstagramId(instagramMessageId: string): Promise<Message[]> {
+    return await db.select().from(messages)
+      .where(eq(messages.instagramMessageId, instagramMessageId));
+  }
+
   // Analytics
   async getUserStats(userId: string): Promise<{
     totalMessagesSent: number;
     activeCampaigns: number;
+    totalRepliesReceived: number;
   }> {
     // Get total messages sent
     const messageStats = await db
@@ -297,9 +326,18 @@ export class DatabaseStorage implements IStorage {
       .from(campaigns)
       .where(and(eq(campaigns.userId, userId), eq(campaigns.status, 'running')));
 
+    // Get total replies received
+    const replyStats = await db
+      .select({ count: count() })
+      .from(replies)
+      .innerJoin(messages, eq(messages.id, replies.messageId))
+      .innerJoin(campaigns, eq(campaigns.id, messages.campaignId))
+      .where(eq(campaigns.userId, userId));
+
     return {
       totalMessagesSent: messageStats[0]?.count || 0,
       activeCampaigns: activeCampaignStats[0]?.count || 0,
+      totalRepliesReceived: replyStats[0]?.count || 0,
     };
   }
 }
