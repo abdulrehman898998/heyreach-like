@@ -29,6 +29,8 @@ export async function handleInstagramWebhook(req: Request, res: Response) {
   try {
     const webhookData: InstagramWebhookMessage = req.body;
 
+    console.log('Received Instagram webhook:', JSON.stringify(webhookData, null, 2));
+
     // Verify this is an Instagram webhook
     if (webhookData.object !== 'instagram') {
       return res.status(400).json({ error: 'Invalid webhook object' });
@@ -41,8 +43,32 @@ export async function handleInstagramWebhook(req: Request, res: Response) {
         
         // Skip if no message or if it's an echo (message from our business account)
         if (!message || (message as any).is_echo) {
+          console.log('Skipping echo message or empty message');
           continue;
         }
+
+        // CRITICAL FILTERING: Only process INCOMING messages (replies from customers)
+        // Check if this message is FROM a customer TO our business account
+        const senderId = messaging.sender.id;
+        const recipientId = messaging.recipient.id;
+        
+        // Find if this recipient (business account receiving the message) belongs to any of our users
+        const businessAccounts = await storage.getSocialAccountsByPlatform('instagram');
+        const matchingAccount = businessAccounts.find(account => 
+          account.instagramBusinessId === recipientId
+        );
+
+        if (!matchingAccount) {
+          console.log('Message received for unknown business account:', recipientId);
+          continue;
+        }
+
+        // This is definitely a CUSTOMER REPLY to our business account
+        console.log('Processing customer reply:', {
+          from: senderId,
+          to: recipientId,
+          businessAccount: matchingAccount.username
+        });
 
         // This is a customer reply to our business account
         await processCustomerReply({
