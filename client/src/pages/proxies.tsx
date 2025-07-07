@@ -16,10 +16,10 @@ import { Switch } from "@/components/ui/switch";
 
 type AddProxyForm = z.infer<typeof addProxySchema>;
 
-const addProxySchema = insertProxySchema.extend({
-  name: z.string().min(1, "Name is required"),
-  host: z.string().min(1, "Host is required"),
-  port: z.number().min(1, "Port must be greater than 0").max(65535, "Port must be less than 65536"),
+const addProxySchema = z.object({
+  url: z.string().min(1, "Proxy URL is required").regex(/^[\w.-]+:\d+$/, "Format: host:port (e.g., 192.168.1.100:8080)"),
+  username: z.string().optional(),
+  password: z.string().optional(),
 });
 
 export default function Proxies() {
@@ -33,9 +33,22 @@ export default function Proxies() {
 
   const addMutation = useMutation({
     mutationFn: async (data: AddProxyForm) => {
+      // Parse URL to extract host and port
+      const [host, portStr] = data.url.split(':');
+      const port = parseInt(portStr);
+      
+      const proxyData = {
+        name: `${host}:${port}`,
+        host,
+        port,
+        username: data.username || null,
+        password: data.password || null,
+        isActive: true,
+      };
+
       const response = await apiRequest("/api/proxies", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify(proxyData),
       });
       return response.json();
     },
@@ -107,12 +120,9 @@ export default function Proxies() {
   const form = useForm<AddProxyForm>({
     resolver: zodResolver(addProxySchema),
     defaultValues: {
-      name: "",
-      host: "",
-      port: 8080,
+      url: "",
       username: "",
       password: "",
-      isActive: true,
     },
   });
 
@@ -162,52 +172,17 @@ export default function Proxies() {
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
                   control={form.control}
-                  name="name"
+                  name="url"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Proxy Name</FormLabel>
+                      <FormLabel>Proxy URL</FormLabel>
                       <FormControl>
-                        <Input placeholder="My Proxy Server" {...field} />
+                        <Input placeholder="192.168.1.100:8080" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="host"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Host/IP</FormLabel>
-                        <FormControl>
-                          <Input placeholder="192.168.1.100" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="port"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Port</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            placeholder="8080" 
-                            {...field}
-                            onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
