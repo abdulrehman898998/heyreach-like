@@ -1,6 +1,7 @@
 import { storage } from "../storage";
 import { googleSheetsService } from "./googleSheetsService";
 import { InstagramBot } from "../automation/instagramBot";
+import { FacebookBot } from "../automation/facebookBot";
 import type { Campaign, SocialAccount, CampaignTarget, Proxy } from "@shared/schema";
 
 class AutomationService {
@@ -272,8 +273,20 @@ class AutomationService {
         await bot.sendDirectMessage(target.profileUrl, message.content);
         console.log(`✅ Message sent to: ${target.profileUrl}`);
         await bot.close();
+      } else if (campaign.platform === 'facebook') {
+        const bot = new FacebookBot({
+          username: account.username,
+          password: Buffer.from(account.password, 'base64').toString(), // Decrypt
+          twofa: account.twofa || undefined,
+        }, proxyConfig);
+
+        console.log(`🤖 Processing Facebook: ${target.profileUrl}`);
+        await bot.initialize();
+        console.log(`📱 Sending Facebook message to: ${target.profileUrl}`);
+        await bot.sendDirectMessage(target.profileUrl, message.content);
+        console.log(`✅ Facebook message sent to: ${target.profileUrl}`);
+        await bot.close();
       }
-      // TODO: Add Facebook automation
 
       // Update message as sent
       await storage.updateMessage(message.id, {
