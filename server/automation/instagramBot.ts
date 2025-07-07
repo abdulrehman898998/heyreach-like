@@ -25,8 +25,9 @@ export class InstagramBot {
 
   async initialize(): Promise<void> {
     try {
-      // Create user data directory for persistent sessions
-      const userDataDir = `./chromium_profiles/${this.account.username.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      // Create unique user data directory to avoid session conflicts
+      const timestamp = Date.now();
+      const userDataDir = `./chromium_profiles/${this.account.username.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}`;
       
       const launchOptions: any = {
         headless: false, // Debugging mode to see what's happening
@@ -240,9 +241,23 @@ export class InstagramBot {
         attempt++;
         console.log(`Navigating to profile (attempt ${attempt}/${maxRetries}): ${profileUrl}`);
         
-        await this.page.waitForTimeout(1000 + Math.random() * 2000);
-        await this.page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        // First ensure we're logged into Instagram
+        console.log('Ensuring logged into Instagram...');
+        await this.page.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
         await this.page.waitForTimeout(2000);
+        
+        // Check if logged in
+        const isLoggedIn = await this.checkLoginStatus();
+        if (!isLoggedIn) {
+          console.log('Not logged in, attempting login...');
+          await this.login();
+        }
+        
+        // Now navigate to the target profile with longer timeout
+        console.log(`Navigating to target profile: ${profileUrl}`);
+        await this.page.waitForTimeout(1000 + Math.random() * 2000);
+        await this.page.goto(profileUrl, { waitUntil: 'networkidle', timeout: 90000 });
+        await this.page.waitForTimeout(3000);
         
         console.log('Checking for Instagram modal popup after profile navigation...');
         await this.handlePostLoginPopups();
@@ -277,11 +292,21 @@ export class InstagramBot {
         
       } catch (error) {
         console.error(`Attempt ${attempt} failed: ${error.message}`);
+        
+        // Handle specific network errors with longer wait times
+        if (error.message.includes('ERR_HTTP_RESPONSE_CODE_FAILURE') || 
+            error.message.includes('net::ERR_NETWORK_CHANGED') ||
+            error.message.includes('net::ERR_CONNECTION_RESET') ||
+            error.message.includes('net::ERR_INTERNET_DISCONNECTED')) {
+          console.log('Network error detected, waiting longer before retry...');
+          await this.page.waitForTimeout(15000); // Wait 15 seconds for network issues
+        }
+        
         if (attempt >= maxRetries) {
           throw error;
         }
         console.log(`Waiting before retry attempt ${attempt + 1}...`);
-        await this.page.waitForTimeout(3000);
+        await this.page.waitForTimeout(5000); // Increased wait time
       }
     }
     
