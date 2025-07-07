@@ -3,13 +3,13 @@
 ## Current System Status: ✅ WORKING
 
 ### 1. Webhook Verification - ✅ WORKING
-- **URL**: `https://024329d0-778d-4771-8bfc-70b78cc4617d.picard.prod.repl.dev/api/webhooks/instagram`
+- **URL**: `https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/api/webhooks/instagram`
 - **Verify Token**: `instagram_webhook_verify_token`
 - **Status**: Successfully responding with 200 status
 - **Test**: `curl` verification returns correct challenge response
 
 ### 2. Instagram OAuth - ✅ WORKING  
-- **Callback URL**: `https://024329d0-778d-4771-8bfc-70b78cc4617d.picard.prod.repl.dev/api/auth/instagram/callback`
+- **Callback URL**: `https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/api/auth/instagram/callback`
 - **Status**: Generating correct auth URLs
 - **App ID**: 2012776769248458 (configured)
 - **App Secret**: Configured and working
@@ -30,13 +30,13 @@
 ### Update Webhook Settings:
 1. Go to: https://developers.facebook.com/apps/2012776769248458/webhooks/
 2. Edit the Instagram webhook configuration
-3. Set **Callback URL** to: `https://024329d0-778d-4771-8bfc-70b78cc4617d.picard.prod.repl.dev/api/webhooks/instagram`
+3. Set **Callback URL** to: `https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/api/webhooks/instagram`
 4. Set **Verify Token** to: `instagram_webhook_verify_token`
 5. Click "Verify and save"
 
 ### Update OAuth Settings:
 1. Go to: App Settings > Basic
-2. Set **Valid OAuth Redirect URIs** to: `https://024329d0-778d-4771-8bfc-70b78cc4617d.picard.prod.repl.dev/api/auth/instagram/callback`
+2. Set **Valid OAuth Redirect URIs** to: `https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/api/auth/instagram/callback`
 3. Save changes
 
 ## System Ready For:

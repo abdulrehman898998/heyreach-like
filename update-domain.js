@@ -8,8 +8,8 @@
 import fs from 'fs';
 import path from 'path';
 
-const OLD_DOMAIN = '4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev';
-const NEW_DOMAIN = '024329d0-778d-4771-8bfc-70b78cc4617d.picard.prod.repl.dev';
+const OLD_DOMAIN = '024329d0-778d-4771-8bfc-70b78cc4617d.picard.prod.repl.dev';
+const NEW_DOMAIN = '4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev';
 
 const filesToUpdate = [
   'WEBHOOK_SETUP_STATUS.md',

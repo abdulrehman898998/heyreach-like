@@ -23,7 +23,7 @@
 
 #### Webhook URL to Add in Meta Console:
 ```
-https://024329d0-778d-4771-8bfc-70b78cc4617d.picard.prod.repl.dev/api/webhooks/instagram
+https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/api/webhooks/instagram
 ```
 
 #### Webhook Events to Subscribe:
@@ -53,7 +53,7 @@ You'll need to set `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` environment variable.
 ### Step 3: Webhooks Configuration
 1. Go to **Products** → **Webhooks**
 2. Click **Edit Subscription** for Instagram
-3. Add callback URL: `https://024329d0-778d-4771-8bfc-70b78cc4617d.picard.prod.repl.dev/api/webhooks/instagram`
+3. Add callback URL: `https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/api/webhooks/instagram`
 4. Add verify token (any string - save this for environment)
 5. Subscribe to fields: `messages`, `message_reactions`, `messaging_postbacks`, `messaging_seen`
 
