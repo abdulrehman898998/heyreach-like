@@ -194,48 +194,93 @@ export class InstagramBot {
     if (!this.page) throw new Error('Page not initialized');
 
     try {
-      // Wait for login form
-      await this.page.waitForSelector('input[name="username"]', { timeout: 10000 });
+      console.log(`\n🔐 Attempting to log in as ${this.account.username}...`);
+      
+      // Navigate to login page using the working pattern
+      await this.page.goto('https://www.instagram.com/accounts/login/', { 
+        waitUntil: 'networkidle', 
+        timeout: 30000 
+      });
 
-      // Fill login form
+      // Wait for login form to be fully loaded
+      console.log('⏳ Waiting for login form...');
+      await this.page.waitForSelector('input[name="username"]', { state: 'visible', timeout: 15000 });
+      await this.page.waitForSelector('input[name="password"]', { state: 'visible', timeout: 15000 });
+      await this.page.waitForTimeout(500 + Math.random() * 500);
+
+      // Fill in login credentials with human-like delays
+      console.log('📝 Filling login credentials...');
       await this.page.fill('input[name="username"]', this.account.username);
-      await this.page.waitForTimeout(1000);
-      
+      await this.page.waitForTimeout(500 + Math.random() * 500);
       await this.page.fill('input[name="password"]', this.account.password);
-      await this.page.waitForTimeout(1000);
+      await this.page.waitForTimeout(500 + Math.random() * 500);
 
-      // Click login button
-      await this.page.click('button[type="submit"]');
+      // Click submit button using the working pattern
+      console.log('🖱️ Clicking submit button...');
+      const submitButton = this.page.locator('button[type="submit"]:visible');
+      await submitButton.waitFor({ state: 'visible', timeout: 10000 });
+      await this.page.waitForTimeout(500 + Math.random() * 500);
+      await submitButton.click();
+      await this.page.waitForTimeout(500 + Math.random() * 500);
 
-      // Wait for navigation or 2FA
-      await this.page.waitForTimeout(3000);
+      // Wait for login result using the working pattern
+      console.log('⏳ Waiting for login result...');
+      try {
+        await Promise.race([
+          this.page.waitForSelector('svg[aria-label="Home"]', { timeout: 20000 }),
+          this.page.waitForSelector('#slfErrorAlert, div[role="alert"]', { timeout: 20000 }),
+          this.page.waitForSelector('input[name="verificationCode"], input[name="verification_code"]', { timeout: 20000 })
+        ]);
+      } catch (e) {
+        console.error('Timeout waiting for login result.');
+      }
 
-      // Check if 2FA is actually required by looking for the input field
-      const twoFASelector = 'input[name="verificationCode"]';
-      const has2FA = await this.page.locator(twoFASelector).isVisible().catch(() => false);
-      
-      if (has2FA && this.account.twofa) {
-        console.log('2FA detected, handling...');
-        await this.handle2FA();
-      } else if (has2FA && !this.account.twofa) {
+      // Check for login error
+      const loginError = await this.page.$('#slfErrorAlert, div[role="alert"]');
+      if (loginError) {
+        const errorMsg = await loginError.textContent();
+        console.error('❌ Login failed:', errorMsg);
+        throw new Error('Login failed: ' + errorMsg);
+      }
+
+      // Handle 2FA prompt using the working pattern
+      const twofaInput = await this.page.$('input[name="verificationCode"], input[name="verification_code"]');
+      if (twofaInput && this.account.twofa) {
+        console.log('🔐 2FA prompt detected. Generating TOTP code...');
+        const { authenticator } = await import('otplib');
+        const code = authenticator.generate(this.account.twofa);
+        console.log('Generated TOTP code:', code);
+        await twofaInput.fill(code);
+        await this.page.waitForTimeout(500 + Math.random() * 500);
+
+        // Try pressing Enter
+        await twofaInput.press('Enter');
+        await this.page.waitForTimeout(2000);
+
+        // If still on 2FA page, try clicking a button
+        const confirmBtn = this.page.locator('button:has-text("Confirm"), button:has-text("Submit"), button:has-text("Continue"), button[type="submit"]:visible');
+        if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await confirmBtn.click();
+          await this.page.waitForTimeout(2000);
+        }
+
+        // Wait for login to complete
+        await this.page.waitForSelector('svg[aria-label="Home"]', { timeout: 20000 });
+        console.log('✅ 2FA code submitted. Login completed.');
+      } else if (twofaInput && !this.account.twofa) {
         console.log('2FA required but no 2FA secret provided');
         throw new Error('2FA required but no 2FA secret configured for this account');
       }
 
-      // Check if login was successful
-      const currentUrl = this.page.url();
-      if (currentUrl.includes('/challenge/') || currentUrl.includes('/accounts/login/')) {
-        // Check if we're still on login page or there's a challenge
-        const stillOnLogin = await this.page.locator('input[name="username"]').isVisible().catch(() => false);
-        if (stillOnLogin) {
-          throw new Error('Login failed - possibly incorrect credentials');
-        }
+      // Handle "Save login info" pop-up using the working pattern
+      const saveLoginButton = this.page.locator('button:has-text("Not Now")');
+      if (await saveLoginButton.isVisible({ timeout: 10000 }).catch(() => false)) {
+        console.log('🔄 Handling "Save login info" popup...');
+        await saveLoginButton.click();
+        await this.page.waitForTimeout(2000);
       }
 
-      // Handle post-login popups
-      await this.handlePostLoginPopups();
-
-      console.log('Successfully logged into Instagram');
+      console.log('✅ Successfully logged into Instagram');
     } catch (error) {
       console.error('Login failed:', error);
       throw error;

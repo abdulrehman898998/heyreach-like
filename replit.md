@@ -132,6 +132,8 @@ Changelog:
 - July 07, 2025. Implemented complete Facebook automation bot using proven local code patterns - both Instagram and Facebook campaigns now use identical robust automation approaches with popup handling, persistent sessions, and multi-fallback selectors
 - July 07, 2025. Fixed URL formatting issues causing ERR_HTTP_RESPONSE_CODE_FAILURE - removed double slashes from Google Sheets URLs and added proactive popup handlers from user's working local automation code
 - July 07, 2025. Identified Instagram bot detection as root cause through comprehensive Playwright testing - Instagram blocks direct navigation to login/profile pages with ERR_HTTP_RESPONSE_CODE_FAILURE errors, implemented JavaScript-based navigation and search fallbacks to bypass detection
+- July 07, 2025. Fixed proxy form to handle complex URLs with special characters and authentication - proxy system now working with IP verification (201.2.52.127) and Instagram accessibility confirmed
+- July 07, 2025. Updated Instagram bot login method to match proven local automation patterns - replaced simple login with sophisticated form handling, human-like delays, robust error detection, and proper 2FA support from working local code
 
 ## User Preferences
 
