@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquare, Reply, ThumbsUp, Play, TrendingUp, TrendingDown } from "lucide-react";
+import { MessageSquare, Play, TrendingUp, TrendingDown, CheckCircle } from "lucide-react";
 
 export default function Analytics() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -70,14 +70,10 @@ export default function Analytics() {
     return null; // Will redirect in useEffect
   }
 
-  const getConversionRate = () => {
-    if (!stats || stats.totalMessagesSent === 0) return "0.0";
-    return ((stats.totalPositiveReplies / stats.totalMessagesSent) * 100).toFixed(1);
-  };
-
-  const getReplyRate = () => {
-    if (!stats || stats.totalMessagesSent === 0) return "0.0";
-    return ((stats.totalRepliesReceived / stats.totalMessagesSent) * 100).toFixed(1);
+  const getSuccessRate = () => {
+    if (!campaigns || campaigns.length === 0) return "0.0";
+    const completed = campaigns.filter((c: any) => c.status === 'completed').length;
+    return ((completed / campaigns.length) * 100).toFixed(1);
   };
 
   const getCompletedCampaigns = () => {
@@ -126,43 +122,43 @@ export default function Analytics() {
             </CardContent>
           </Card>
 
-          {/* Total Replies */}
+          {/* Total Campaigns */}
           <Card className="hover:shadow-sm transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600">Total Replies</p>
+                  <p className="text-sm font-medium text-slate-600">Total Campaigns</p>
                   <p className="text-3xl font-bold text-slate-900">
-                    {stats?.totalRepliesReceived?.toLocaleString() || '0'}
+                    {getTotalCampaigns()}
                   </p>
                   <p className="text-sm text-secondary mt-1">
                     <TrendingUp className="w-4 h-4 inline mr-1" />
-                    {getReplyRate()}% reply rate
+                    {getSuccessRate()}% completion rate
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-secondary/10 rounded-lg flex items-center justify-center">
-                  <Reply className="w-6 h-6 text-secondary" />
+                  <MessageSquare className="w-6 h-6 text-secondary" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Positive Replies */}
+          {/* Completed Campaigns */}
           <Card className="hover:shadow-sm transition-shadow">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-600">Positive Replies</p>
+                  <p className="text-sm font-medium text-slate-600">Completed</p>
                   <p className="text-3xl font-bold text-slate-900">
-                    {stats?.totalPositiveReplies?.toLocaleString() || '0'}
+                    {getCompletedCampaigns()}
                   </p>
                   <p className="text-sm text-accent mt-1">
-                    <TrendingUp className="w-4 h-4 inline mr-1" />
-                    {getConversionRate()}% conversion rate
+                    <CheckCircle className="w-4 h-4 inline mr-1" />
+                    Successful campaigns
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
-                  <ThumbsUp className="w-6 h-6 text-accent" />
+                  <CheckCircle className="w-6 h-6 text-accent" />
                 </div>
               </div>
             </CardContent>
@@ -191,46 +187,44 @@ export default function Analytics() {
 
         {/* Performance Metrics */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Conversion Metrics */}
+          {/* Performance Metrics */}
           <Card>
             <CardHeader>
-              <CardTitle>Conversion Metrics</CardTitle>
+              <CardTitle>Performance Metrics</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-600">Reply Rate</span>
-                  <span className="font-semibold">{getReplyRate()}%</span>
+                  <span className="text-slate-600">Campaign Success Rate</span>
+                  <span className="font-semibold">{getSuccessRate()}%</span>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-2">
                   <div 
                     className="bg-secondary h-2 rounded-full transition-all duration-300" 
-                    style={{ width: `${getReplyRate()}%` }}
+                    style={{ width: `${getSuccessRate()}%` }}
                   ></div>
                 </div>
                 
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-600">Positive Conversion</span>
-                  <span className="font-semibold">{getConversionRate()}%</span>
+                  <span className="text-slate-600">Active Campaigns</span>
+                  <span className="font-semibold">{stats?.activeCampaigns || 0}</span>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-2">
                   <div 
                     className="bg-accent h-2 rounded-full transition-all duration-300" 
-                    style={{ width: `${getConversionRate()}%` }}
+                    style={{ width: `${stats?.activeCampaigns ? Math.min((stats.activeCampaigns / 10) * 100, 100) : 0}%` }}
                   ></div>
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-600">Campaign Completion</span>
-                  <span className="font-semibold">
-                    {getTotalCampaigns() > 0 ? Math.round((getCompletedCampaigns() / getTotalCampaigns()) * 100) : 0}%
-                  </span>
+                  <span className="text-slate-600">Messages Delivered</span>
+                  <span className="font-semibold">{stats?.totalMessagesSent || 0}</span>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-2">
                   <div 
                     className="bg-primary h-2 rounded-full transition-all duration-300" 
                     style={{ 
-                      width: `${getTotalCampaigns() > 0 ? (getCompletedCampaigns() / getTotalCampaigns()) * 100 : 0}%` 
+                      width: `${stats?.totalMessagesSent ? Math.min((stats.totalMessagesSent / 1000) * 100, 100) : 0}%` 
                     }}
                   ></div>
                 </div>

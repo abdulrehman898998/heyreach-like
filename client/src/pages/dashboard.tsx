@@ -43,12 +43,7 @@ export default function Dashboard() {
           description: `Message sent to ${message.target} via ${message.account}`,
         });
         break;
-      case 'reply_received':
-        toast({
-          title: "New Reply",
-          description: "You received a new reply to your message",
-        });
-        break;
+
       case 'campaign_completed':
         toast({
           title: "Campaign Completed",
@@ -147,7 +142,7 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className="flex-1 p-6 overflow-auto">
         {/* Overview Stats */}
-        <StatsCards stats={stats} />
+        <StatsCards stats={stats} campaigns={campaigns} />
 
         {/* Campaign Performance & Real-time Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">

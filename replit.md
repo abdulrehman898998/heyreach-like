@@ -116,7 +116,9 @@ SocialBot Pro is a full-stack web application that automates Instagram and Faceb
 
 Changelog:
 - July 07, 2025. Initial setup
+- July 07, 2025. Removed reply tracking functionality per user request to simplify platform
 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+Project preferences: Skip reply tracking features as they are too complex. Focus on core automation features for Instagram/Facebook messaging.

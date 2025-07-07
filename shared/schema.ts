@@ -53,14 +53,6 @@ export const messageStatusEnum = pgEnum("message_status", [
   "pending",
   "sent",
   "failed",
-  "replied",
-]);
-
-// Reply sentiment enum
-export const replySentimentEnum = pgEnum("reply_sentiment", [
-  "positive",
-  "negative",
-  "neutral",
 ]);
 
 // Social media accounts
@@ -100,8 +92,6 @@ export const campaigns = pgTable("campaigns", {
   delayBetweenMessages: integer("delay_between_messages").default(30), // seconds
   totalTargets: integer("total_targets").default(0),
   messagesSent: integer("messages_sent").default(0),
-  repliesReceived: integer("replies_received").default(0),
-  positiveReplies: integer("positive_replies").default(0),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -131,16 +121,7 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Replies received
-export const replies = pgTable("replies", {
-  id: serial("id").primaryKey(),
-  messageId: integer("message_id").notNull().references(() => messages.id, { onDelete: "cascade" }),
-  content: text("content").notNull(),
-  sentiment: replySentimentEnum("sentiment").default("neutral"),
-  senderUsername: varchar("sender_username"),
-  receivedAt: timestamp("received_at").defaultNow(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+
 
 // Activity logs
 export const activityLogs = pgTable("activity_logs", {
@@ -197,7 +178,7 @@ export const campaignTargetsRelations = relations(campaignTargets, ({ one, many 
   messages: many(messages),
 }));
 
-export const messagesRelations = relations(messages, ({ one, many }) => ({
+export const messagesRelations = relations(messages, ({ one }) => ({
   campaign: one(campaigns, {
     fields: [messages.campaignId],
     references: [campaigns.id],
@@ -209,14 +190,6 @@ export const messagesRelations = relations(messages, ({ one, many }) => ({
   target: one(campaignTargets, {
     fields: [messages.targetId],
     references: [campaignTargets.id],
-  }),
-  replies: many(replies),
-}));
-
-export const repliesRelations = relations(replies, ({ one }) => ({
-  message: one(messages, {
-    fields: [replies.messageId],
-    references: [messages.id],
   }),
 }));
 
@@ -246,8 +219,7 @@ export type InsertCampaignTarget = typeof campaignTargets.$inferInsert;
 export type Message = typeof messages.$inferSelect;
 export type InsertMessage = typeof messages.$inferInsert;
 
-export type Reply = typeof replies.$inferSelect;
-export type InsertReply = typeof replies.$inferInsert;
+
 
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = typeof activityLogs.$inferInsert;
@@ -277,8 +249,4 @@ export const insertCampaignSchema = createInsertSchema(campaigns).omit({
   completedAt: true,
 });
 
-export const insertReplySchema = createInsertSchema(replies).omit({
-  id: true,
-  createdAt: true,
-  receivedAt: true,
-});
+

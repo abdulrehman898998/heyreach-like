@@ -1,45 +1,47 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { MessageSquare, Reply, ThumbsUp, Play, TrendingUp } from "lucide-react";
+import { MessageSquare, Users, CheckCircle, Play, TrendingUp } from "lucide-react";
 
 interface StatsCardsProps {
   stats?: {
     totalMessagesSent: number;
-    totalRepliesReceived: number;
-    totalPositiveReplies: number;
     activeCampaigns: number;
   };
+  campaigns?: any[];
 }
 
-export default function StatsCards({ stats }: StatsCardsProps) {
+export default function StatsCards({ stats, campaigns }: StatsCardsProps) {
+  const completedCampaigns = campaigns?.filter(c => c.status === 'completed').length || 0;
+  const totalCampaigns = campaigns?.length || 0;
+  
   const cards = [
     {
       title: "Messages Sent",
       value: stats?.totalMessagesSent?.toLocaleString() || "0",
-      growth: "+12.5% from last month",
+      growth: "Total messages delivered",
       icon: MessageSquare,
       bgColor: "bg-primary/10",
       iconColor: "text-primary",
     },
     {
-      title: "Total Replies",
-      value: stats?.totalRepliesReceived?.toLocaleString() || "0",
-      growth: "+8.2% from last month",
-      icon: Reply,
+      title: "Total Campaigns",
+      value: totalCampaigns.toString(),
+      growth: "Automation campaigns created",
+      icon: Users,
       bgColor: "bg-secondary/10",
       iconColor: "text-secondary",
     },
     {
-      title: "Positive Replies",
-      value: stats?.totalPositiveReplies?.toLocaleString() || "0",
-      growth: `${stats?.totalMessagesSent ? ((stats.totalPositiveReplies / stats.totalMessagesSent) * 100).toFixed(1) : 0}% conversion rate`,
-      icon: ThumbsUp,
+      title: "Completed",
+      value: completedCampaigns.toString(),
+      growth: `${totalCampaigns > 0 ? ((completedCampaigns / totalCampaigns) * 100).toFixed(1) : 0}% success rate`,
+      icon: CheckCircle,
       bgColor: "bg-accent/10",
       iconColor: "text-accent",
     },
     {
       title: "Active Campaigns",
       value: stats?.activeCampaigns?.toString() || "0",
-      growth: "campaigns running",
+      growth: "Currently running",
       icon: Play,
       bgColor: "bg-slate-100",
       iconColor: "text-slate-600",

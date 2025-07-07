@@ -9,7 +9,6 @@ import {
   insertSocialAccountSchema,
   insertGoogleSheetSchema,
   insertCampaignSchema,
-  insertReplySchema,
 } from "@shared/schema";
 import { z } from "zod";
 

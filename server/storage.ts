@@ -5,7 +5,6 @@ import {
   campaigns,
   campaignTargets,
   messages,
-  replies,
   activityLogs,
   type User,
   type UpsertUser,
@@ -19,8 +18,6 @@ import {
   type InsertCampaignTarget,
   type Message,
   type InsertMessage,
-  type Reply,
-  type InsertReply,
   type ActivityLog,
   type InsertActivityLog,
 } from "@shared/schema";
@@ -61,9 +58,7 @@ export interface IStorage {
   getMessagesByCampaign(campaignId: number): Promise<Message[]>;
   updateMessage(id: number, updates: Partial<Message>): Promise<Message>;
 
-  // Replies
-  createReply(reply: InsertReply): Promise<Reply>;
-  getRepliesByMessage(messageId: number): Promise<Reply[]>;
+
 
   // Activity logs
   createActivityLog(log: InsertActivityLog): Promise<ActivityLog>;
@@ -72,8 +67,6 @@ export interface IStorage {
   // Analytics
   getUserStats(userId: string): Promise<{
     totalMessagesSent: number;
-    totalRepliesReceived: number;
-    totalPositiveReplies: number;
     activeCampaigns: number;
   }>;
 }
@@ -228,19 +221,7 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  // Replies
-  async createReply(reply: InsertReply): Promise<Reply> {
-    const [created] = await db.insert(replies).values(reply).returning();
-    return created;
-  }
 
-  async getRepliesByMessage(messageId: number): Promise<Reply[]> {
-    return await db
-      .select()
-      .from(replies)
-      .where(eq(replies.messageId, messageId))
-      .orderBy(desc(replies.createdAt));
-  }
 
   // Activity logs
   async createActivityLog(log: InsertActivityLog): Promise<ActivityLog> {
@@ -260,8 +241,6 @@ export class DatabaseStorage implements IStorage {
   // Analytics
   async getUserStats(userId: string): Promise<{
     totalMessagesSent: number;
-    totalRepliesReceived: number;
-    totalPositiveReplies: number;
     activeCampaigns: number;
   }> {
     // Get total messages sent
@@ -271,22 +250,6 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(campaigns, eq(campaigns.id, messages.campaignId))
       .where(and(eq(campaigns.userId, userId), eq(messages.status, 'sent')));
 
-    // Get total replies
-    const replyStats = await db
-      .select({ count: count() })
-      .from(replies)
-      .innerJoin(messages, eq(messages.id, replies.messageId))
-      .innerJoin(campaigns, eq(campaigns.id, messages.campaignId))
-      .where(eq(campaigns.userId, userId));
-
-    // Get positive replies
-    const positiveReplyStats = await db
-      .select({ count: count() })
-      .from(replies)
-      .innerJoin(messages, eq(messages.id, replies.messageId))
-      .innerJoin(campaigns, eq(campaigns.id, messages.campaignId))
-      .where(and(eq(campaigns.userId, userId), eq(replies.sentiment, 'positive')));
-
     // Get active campaigns
     const activeCampaignStats = await db
       .select({ count: count() })
@@ -295,8 +258,6 @@ export class DatabaseStorage implements IStorage {
 
     return {
       totalMessagesSent: messageStats[0]?.count || 0,
-      totalRepliesReceived: replyStats[0]?.count || 0,
-      totalPositiveReplies: positiveReplyStats[0]?.count || 0,
       activeCampaigns: activeCampaignStats[0]?.count || 0,
     };
   }
