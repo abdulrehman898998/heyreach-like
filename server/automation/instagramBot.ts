@@ -154,15 +154,26 @@ export class InstagramBot {
       // Wait for navigation or 2FA
       await this.page.waitForTimeout(3000);
 
-      // Handle 2FA if required
-      if (this.account.twofa) {
+      // Check if 2FA is actually required by looking for the input field
+      const twoFASelector = 'input[name="verificationCode"]';
+      const has2FA = await this.page.locator(twoFASelector).isVisible().catch(() => false);
+      
+      if (has2FA && this.account.twofa) {
+        console.log('2FA detected, handling...');
         await this.handle2FA();
+      } else if (has2FA && !this.account.twofa) {
+        console.log('2FA required but no 2FA secret provided');
+        throw new Error('2FA required but no 2FA secret configured for this account');
       }
 
       // Check if login was successful
       const currentUrl = this.page.url();
       if (currentUrl.includes('/challenge/') || currentUrl.includes('/accounts/login/')) {
-        throw new Error('Login failed - possibly incorrect credentials or security challenge');
+        // Check if we're still on login page or there's a challenge
+        const stillOnLogin = await this.page.locator('input[name="username"]').isVisible().catch(() => false);
+        if (stillOnLogin) {
+          throw new Error('Login failed - possibly incorrect credentials');
+        }
       }
 
       // Handle post-login popups
