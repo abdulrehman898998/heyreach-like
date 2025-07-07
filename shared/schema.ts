@@ -287,8 +287,6 @@ export const insertSocialAccountSchema = createInsertSchema(socialAccounts).omit
 export const insertGoogleSheetSchema = createInsertSchema(googleSheets).omit({
   id: true,
   createdAt: true,
-  accessToken: true,
-  refreshToken: true,
 });
 
 export const insertCampaignSchema = createInsertSchema(campaigns).omit({
