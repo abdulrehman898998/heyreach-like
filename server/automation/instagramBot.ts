@@ -48,6 +48,10 @@ export class InstagramBot {
       await this.login();
       
     } catch (error) {
+      if (error.message.includes('Executable doesn\'t exist')) {
+        console.error('Browser not installed. Installing Chromium...');
+        throw new Error('Browser not ready. Chromium is being installed in the background. Please try again in a few minutes.');
+      }
       console.error('Failed to initialize Instagram bot:', error);
       await this.close();
       throw error;

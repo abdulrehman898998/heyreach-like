@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { automationService } from "./services/automationService";
 import { googleSheetsService } from "./services/googleSheetsService";
+import { BrowserSetup } from "./utils/browserSetup";
 import {
   insertSocialAccountSchema,
   insertGoogleSheetSchema,
@@ -70,6 +71,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // System status routes
+  app.get('/api/system/browser-status', isAuthenticated, async (req, res) => {
+    try {
+      const status = await BrowserSetup.checkBrowserAvailability();
+      res.json({
+        ...status,
+        isInstalling: BrowserSetup.isCurrentlyInstalling()
+      });
+    } catch (error) {
+      console.error("Error checking browser status:", error);
+      res.status(500).json({ message: "Failed to check browser status" });
+    }
+  });
+
+  app.post('/api/system/install-browser', isAuthenticated, async (req, res) => {
+    try {
+      if (BrowserSetup.isCurrentlyInstalling()) {
+        return res.json({ message: "Installation already in progress" });
+      }
+
+      // Start installation in background
+      BrowserSetup.installBrowser().then(success => {
+        console.log(`Browser installation ${success ? 'completed' : 'failed'}`);
+      }).catch(error => {
+        console.error('Browser installation error:', error);
+      });
+
+      res.json({ message: "Browser installation started" });
+    } catch (error) {
+      console.error("Error starting browser installation:", error);
+      res.status(500).json({ message: "Failed to start browser installation" });
     }
   });
 
