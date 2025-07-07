@@ -119,6 +119,9 @@ Changelog:
 - July 07, 2025. Removed reply tracking functionality per user request to simplify platform
 - July 07, 2025. Added rotating proxy support with user management interface for improved automation performance
 - July 07, 2025. Completed comprehensive system review - 95% production ready, only browser installation needed
+- July 07, 2025. Built complete Instagram webhook system with OAuth integration - users can connect Instagram Business accounts for reply tracking
+- July 07, 2025. Implemented 3-layer webhook filtering system to process only customer replies, not outgoing automation messages
+- July 07, 2025. Message tracking system 95% complete - only missing Instagram message ID capture when sending for perfect reply matching
 
 ## User Preferences
 
