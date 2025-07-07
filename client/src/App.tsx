@@ -9,6 +9,8 @@ import Dashboard from "@/pages/dashboard";
 import Campaigns from "@/pages/campaigns";
 import Accounts from "@/pages/accounts";
 import Analytics from "@/pages/analytics";
+import Sheets from "@/pages/sheets";
+import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 import Sidebar from "@/components/layout/sidebar";
 
@@ -38,7 +40,9 @@ function Router() {
               <Route path="/" component={Dashboard} />
               <Route path="/campaigns" component={Campaigns} />
               <Route path="/accounts" component={Accounts} />
+              <Route path="/sheets" component={Sheets} />
               <Route path="/analytics" component={Analytics} />
+              <Route path="/settings" component={SettingsPage} />
               <Route component={NotFound} />
             </Switch>
           </div>
