@@ -29,7 +29,8 @@ export class InstagramBot {
       const userDataDir = `./chromium_profiles/${this.account.username.replace(/[^a-zA-Z0-9]/g, '_')}`;
       
       const launchOptions: any = {
-        headless: false, // Show browser window for debugging
+        headless: true, // Must be true for Replit environment
+        executablePath: '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium-browser',
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -37,7 +38,10 @@ export class InstagramBot {
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
-          '--disable-gpu'
+          '--disable-gpu',
+          '--disable-web-security',
+          '--disable-features=site-per-process',
+          '--disable-blink-features=AutomationControlled'
         ]
       };
 
