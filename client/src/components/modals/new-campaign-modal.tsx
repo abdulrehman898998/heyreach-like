@@ -43,6 +43,7 @@ export default function NewCampaignModal({ open, onOpenChange }: NewCampaignModa
     defaultValues: {
       name: "",
       platform: "instagram",
+      googleSheetId: undefined,
       messagesPerAccount: 50,
       delayBetweenMessages: 30,
     },
@@ -158,7 +159,7 @@ export default function NewCampaignModal({ open, onOpenChange }: NewCampaignModa
                           </SelectItem>
                         ))
                       ) : (
-                        <SelectItem value="" disabled>
+                        <SelectItem value="no-sheets" disabled>
                           Connect a Google Sheet first
                         </SelectItem>
                       )}
