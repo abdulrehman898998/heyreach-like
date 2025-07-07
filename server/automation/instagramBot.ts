@@ -38,9 +38,8 @@ export class InstagramBot {
 
   async initialize(): Promise<void> {
     try {
-      // Create unique user data directory to avoid session conflicts
-      const timestamp = Date.now();
-      const userDataDir = `./chromium_profiles/${this.account.username.replace(/[^a-zA-Z0-9]/g, '_')}_${timestamp}`;
+      // Use persistent user data directory like local code (no timestamp for session persistence)
+      const userDataDir = `./chromium_profiles/${this.account.username.replace(/[^a-zA-Z0-9]/g, '_')}`;
       
       const launchOptions: any = {
         headless: false, // Debugging mode to see what's happening
@@ -269,14 +268,23 @@ export class InstagramBot {
           console.log('✅ Already logged into Instagram');
         }
         
-        // Now navigate to the target profile with longer timeout
+        // Now navigate to the target profile with simpler approach like local code
         console.log(`Navigating to target profile: ${profileUrl}`);
         await this.page.waitForTimeout(1000 + Math.random() * 2000);
-        await this.page.goto(profileUrl, { waitUntil: 'networkidle', timeout: 90000 });
-        await this.page.waitForTimeout(3000);
+        await this.page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await this.page.waitForTimeout(2000);
         
-        console.log('Checking for Instagram modal popup after profile navigation...');
-        await this.handlePostLoginPopups();
+        // Check for and handle Instagram modal popup after navigation
+        console.log('🔍 Checking for Instagram modal popup after profile navigation...');
+        const modalHandled = await this.handleInstagramModal();
+        
+        if (!modalHandled) {
+          console.log('⚠️ Modal handling failed after profile navigation, but continuing...');
+        }
+        
+        // Handle any other popups that might appear
+        console.log('🔍 Checking for any other popups...');
+        await this.handleAnyPopups();
         
         const currentUrl = this.page.url();
         console.log(`Current URL after navigation: ${currentUrl}`);
@@ -309,13 +317,30 @@ export class InstagramBot {
       } catch (error) {
         console.error(`Attempt ${attempt} failed: ${error.message}`);
         
-        // Handle specific network errors with longer wait times
+        // Handle specific network errors - retry with different approach
         if (error.message.includes('ERR_HTTP_RESPONSE_CODE_FAILURE') || 
             error.message.includes('net::ERR_NETWORK_CHANGED') ||
             error.message.includes('net::ERR_CONNECTION_RESET') ||
             error.message.includes('net::ERR_INTERNET_DISCONNECTED')) {
-          console.log('Network error detected, waiting longer before retry...');
-          await this.page.waitForTimeout(15000); // Wait 15 seconds for network issues
+          console.log('Network error detected - likely Instagram blocking. Trying alternative approach...');
+          
+          // Try going to Instagram home first, then navigate to profile
+          try {
+            await this.page.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+            await this.page.waitForTimeout(2000);
+            
+            // Now try the profile URL with a different approach
+            await this.page.evaluate((url) => {
+              window.location.href = url;
+            }, profileUrl);
+            await this.page.waitForTimeout(3000);
+            
+            // If this works, continue without error
+            console.log('Alternative navigation method succeeded');
+          } catch (altError) {
+            console.log('Alternative method also failed, waiting before retry...');
+            await this.page.waitForTimeout(10000);
+          }
         }
         
         if (attempt >= maxRetries) {
@@ -439,6 +464,101 @@ export class InstagramBot {
       } else {
         console.log(`⚠️ Message button not available for ${profileUrl}, skipping.`);
         throw new Error(`Message button not available for ${profileUrl}`);
+      }
+    }
+  }
+
+  async handleInstagramModal() {
+    console.log('🔍 Checking for Instagram modal popup...');
+    
+    // Multiple selectors for the modal login button to handle different scenarios
+    const modalSelectors = [
+      'div[role="dialog"] div[role="button"]:has-text("Log in")',
+      'div[role="dialog"] button:has-text("Log in")',
+      'div[role="dialog"] a:has-text("Log in")',
+      'div[role="button"]:has-text("Log in"):visible',
+      'button:has-text("Log in"):visible',
+      'a:has-text("Log in"):visible'
+    ];
+
+    let modalFound = false;
+    let clicked = false;
+
+    // Wait for modal to appear (with timeout)
+    try {
+      await this.page.waitForTimeout(2000); // Give modal time to appear
+      
+      // Check if any modal selector is present
+      for (const selector of modalSelectors) {
+        try {
+          const element = await this.page.locator(selector).first();
+          if (await element.isVisible({ timeout: 1000 })) {
+            console.log(`✅ Modal found with selector: ${selector}`);
+            modalFound = true;
+            
+            // Try clicking the modal button
+            await element.click({ force: true, timeout: 5000 });
+            await this.page.waitForTimeout(1000);
+            clicked = true;
+            console.log('✅ Modal login button clicked successfully');
+            break;
+          }
+        } catch (e) {
+          // Continue to next selector
+          continue;
+        }
+      }
+      
+      if (!modalFound) {
+        console.log('ℹ️ No modal detected - proceeding with normal flow');
+        return true;
+      }
+      
+      if (!clicked) {
+        console.log('❌ Failed to click modal button with any method');
+        return false;
+      }
+      
+      // Wait for modal to disappear
+      console.log('⏳ Waiting for modal to disappear...');
+      await this.page.waitForTimeout(2000);
+      console.log('✅ Modal disappeared successfully');
+      
+      return true;
+      
+    } catch (error) {
+      console.error('❌ Error handling modal:', error.message);
+      return false;
+    }
+  }
+
+  async handleAnyPopups() {
+    console.log('🔍 Checking for any popups...');
+    
+    const popupSelectors = [
+      'button:has-text("Not Now")',
+      'button:has-text("Cancel")',
+      'button:has-text("Skip")',
+      'button:has-text("Dismiss")',
+      'div[role="dialog"] button:has-text("Not Now")',
+      'div[role="dialog"] button:has-text("Cancel")',
+      '[role="button"]:has-text("Not Now")',
+      '[role="button"]:has-text("Cancel")',
+      'button[aria-label="Close"]',
+      'div[role="dialog"] button[aria-label="Close"]'
+    ];
+
+    for (const selector of popupSelectors) {
+      try {
+        const element = await this.page.locator(selector).first();
+        if (await element.isVisible({ timeout: 1000 })) {
+          console.log(`🔄 Clicking popup button: ${selector}`);
+          await element.click();
+          await this.page.waitForTimeout(1000);
+          break; // Only handle one popup at a time
+        }
+      } catch (e) {
+        // Continue to next selector
       }
     }
   }
