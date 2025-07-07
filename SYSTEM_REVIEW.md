@@ -83,9 +83,9 @@
 
 ### 2. Google OAuth Redirect URI
 - **Status**: ⚠️ Needs Google Console Configuration
-- **Current Domain**: `4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev`
+- **Current Domain**: `024329d0-778d-4771-8bfc-70b78cc4617d.picard.prod.repl.dev`
 - **Required Action**: Add this domain to Google OAuth redirect URIs
-- **Redirect URI**: `https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/api/auth/google/callback`
+- **Redirect URI**: `https://024329d0-778d-4771-8bfc-70b78cc4617d.picard.prod.repl.dev/api/auth/google/callback`
 
 ## 🔧 TECHNICAL ARCHITECTURE
 

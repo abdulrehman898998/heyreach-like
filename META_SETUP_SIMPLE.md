@@ -13,7 +13,7 @@ Your App ID and App Secret are now configured. Just need to add the webhook URL 
    - Find "Webhooks" and click "Set Up"
 
 3. **Configure Webhook**:
-   - Callback URL: `https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/api/webhooks/instagram`
+   - Callback URL: `https://024329d0-778d-4771-8bfc-70b78cc4617d.picard.prod.repl.dev/api/webhooks/instagram`
    - Verify Token: `instagram_webhook_verify_token`
    - Subscribe to: `messages`, `message_reactions`
 

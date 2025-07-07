@@ -141,5 +141,5 @@ Changelog:
 Preferred communication style: Simple, everyday language.
 Project preferences: Skip reply tracking features as they are too complex. Focus on core automation features for Instagram/Facebook messaging.
 Feature requests: Rotating proxy support for users to add proxy servers with username/password authentication.
-Domain preference: Always use stable URL https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/ - never change domain configuration.
+Domain preference: Always use stable URL https://024329d0-778d-4771-8bfc-70b78cc4617d.picard.prod.repl.dev/ - never change domain configuration.
 Technical preference: User has working local automation code that successfully handles Instagram login and messaging. Current web platform code has login issues and should be updated to match the working local patterns exactly.

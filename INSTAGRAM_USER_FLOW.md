@@ -38,7 +38,7 @@ Perfect! Now I understand exactly what you need. Here's the complete flow I've i
 3. Add these products:
    - "Instagram Basic Display"
    - "Webhooks"
-4. Configure webhook URL: `https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/api/webhooks/instagram`
+4. Configure webhook URL: `https://024329d0-778d-4771-8bfc-70b78cc4617d.picard.prod.repl.dev/api/webhooks/instagram`
 5. Set webhook fields: `messages`, `message_reactions`
 6. Share your App ID and App Secret with me
 
