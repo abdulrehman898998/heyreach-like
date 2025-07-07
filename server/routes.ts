@@ -271,6 +271,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put('/api/social-accounts/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const accountId = parseInt(req.params.id);
+      
+      const validatedData = insertSocialAccountSchema.parse({
+        ...req.body,
+        userId,
+      });
+
+      // Encrypt password before storing
+      validatedData.password = Buffer.from(validatedData.password).toString('base64');
+
+      const updatedAccount = await storage.updateSocialAccount(accountId, validatedData);
+      await storage.createActivityLog({
+        userId,
+        action: 'social_account_updated',
+        details: `Updated ${updatedAccount.platform} account: ${updatedAccount.username}`,
+      });
+
+      res.json(updatedAccount);
+    } catch (error) {
+      console.error("Error updating social account:", error);
+      res.status(400).json({ message: "Failed to update social account" });
+    }
+  });
+
   app.delete('/api/social-accounts/:id', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

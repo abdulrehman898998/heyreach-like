@@ -11,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Eye, EyeOff } from "lucide-react";
+import { Plus, Trash2, Eye, EyeOff, Edit } from "lucide-react";
 import { SiInstagram, SiFacebook } from "react-icons/si";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -31,6 +31,8 @@ export default function Accounts() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isAddAccountModalOpen, setIsAddAccountModalOpen] = useState(false);
+  const [isEditAccountModalOpen, setIsEditAccountModalOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<any>(null);
   const [showPasswords, setShowPasswords] = useState<{ [key: number]: boolean }>({});
 
   // Redirect to home if not authenticated
@@ -80,6 +82,16 @@ export default function Accounts() {
     },
   });
 
+  const editForm = useForm<AddAccountForm>({
+    resolver: zodResolver(addAccountSchema),
+    defaultValues: {
+      platform: "instagram",
+      username: "",
+      password: "",
+      twofa: "",
+    },
+  });
+
   // Add account mutation
   const addAccountMutation = useMutation({
     mutationFn: async (data: AddAccountForm) => {
@@ -109,6 +121,41 @@ export default function Accounts() {
       toast({
         title: "Error",
         description: "Failed to add account",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Edit account mutation
+  const editAccountMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: AddAccountForm }) => {
+      await apiRequest("PUT", `/api/social-accounts/${id}`, data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Account Updated",
+        description: "Social media account has been updated successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/social-accounts"] });
+      setIsEditAccountModalOpen(false);
+      setEditingAccount(null);
+      editForm.reset();
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error as Error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to update account",
         variant: "destructive",
       });
     },
@@ -148,6 +195,23 @@ export default function Accounts() {
 
   const onSubmit = (data: AddAccountForm) => {
     addAccountMutation.mutate(data);
+  };
+
+  const onEditSubmit = (data: AddAccountForm) => {
+    if (editingAccount) {
+      editAccountMutation.mutate({ id: editingAccount.id, data });
+    }
+  };
+
+  const openEditModal = (account: any) => {
+    setEditingAccount(account);
+    editForm.reset({
+      platform: account.platform,
+      username: account.username,
+      password: atob(account.password),
+      twofa: account.twofa || "",
+    });
+    setIsEditAccountModalOpen(true);
   };
 
   const connectInstagramWebhook = async (accountId: number) => {
@@ -354,6 +418,95 @@ export default function Accounts() {
               </Form>
             </DialogContent>
           </Dialog>
+
+          {/* Edit Account Modal */}
+          <Dialog open={isEditAccountModalOpen} onOpenChange={setIsEditAccountModalOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Edit Social Media Account</DialogTitle>
+              </DialogHeader>
+              <Form {...editForm}>
+                <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+                  <FormField
+                    control={editForm.control}
+                    name="platform"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Platform</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select platform" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="instagram">Instagram</SelectItem>
+                            <SelectItem value="facebook">Facebook</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editForm.control}
+                    name="username"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Username</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter username" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input type="password" placeholder="Enter password" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editForm.control}
+                    name="twofa"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>2FA Secret (Optional)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Enter 2FA secret if enabled" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex justify-end space-x-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsEditAccountModalOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      disabled={editAccountMutation.isPending}
+                      className="bg-primary hover:bg-primary/90"
+                    >
+                      {editAccountMutation.isPending ? "Updating..." : "Update Account"}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </div>
       </header>
 
@@ -405,7 +558,7 @@ export default function Accounts() {
                       <div className="flex items-center space-x-2 mt-1">
                         <Input
                           type={showPasswords[account.id] ? "text" : "password"}
-                          value={showPasswords[account.id] ? Buffer.from(account.password, 'base64').toString() : "••••••••••"}
+                          value={showPasswords[account.id] ? atob(account.password) : "••••••••••"}
                           readOnly
                           className="flex-1"
                         />
@@ -463,12 +616,21 @@ export default function Accounts() {
                     )}
 
                     {/* Actions */}
-                    <div className="flex justify-end pt-4 border-t border-slate-200">
+                    <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => openEditModal(account)}
+                        title="Edit account"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
                       <Button
                         size="sm"
                         variant="destructive"
                         onClick={() => deleteAccountMutation.mutate(account.id)}
                         disabled={deleteAccountMutation.isPending}
+                        title="Delete account"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>

@@ -127,6 +127,7 @@ Changelog:
 - July 07, 2025. Fixed Google Sheets OAuth token storage issue - authentication and data loading now working perfectly, campaign successfully loaded 5 targets from user's sheet
 - July 07, 2025. Created comprehensive local setup documentation with database schema, environment templates, AWS setup guide, and automated testing script for local development
 - July 07, 2025. Fixed critical Instagram bot automation issues - resolved setUserAgent error with persistent context and fixed Google Sheets cascade deletion constraints
+- July 07, 2025. Added complete account editing functionality - users can now edit Instagram/Facebook account credentials through web interface with edit modal and PUT API endpoint
 
 ## User Preferences
 
