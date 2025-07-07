@@ -175,16 +175,38 @@ export default function Accounts() {
         'width=600,height=700,scrollbars=yes,resizable=yes'
       );
 
-      // Listen for popup completion
+      // Listen for popup messages and completion
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'instagram_connected') {
+          if (event.data.success) {
+            // Refresh accounts data
+            queryClient.invalidateQueries({ queryKey: ["/api/social-accounts"] });
+            toast({
+              title: "Instagram Connected",
+              description: "Your Instagram account is now connected for webhook replies",
+            });
+          } else {
+            toast({
+              title: "Connection Failed",
+              description: event.data.error || "Failed to connect Instagram webhook",
+              variant: "destructive",
+            });
+          }
+          window.removeEventListener('message', handleMessage);
+        }
+      };
+
+      window.addEventListener('message', handleMessage);
+
+      // Fallback: check if popup closed without message
       const checkClosed = setInterval(() => {
         if (popup?.closed) {
           clearInterval(checkClosed);
-          // Refresh accounts data
-          queryClient.invalidateQueries({ queryKey: ["/api/social-accounts"] });
-          toast({
-            title: "Instagram Connected",
-            description: "Your Instagram account is now connected for webhook replies",
-          });
+          window.removeEventListener('message', handleMessage);
+          // Only show fallback if we didn't already get a message
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ["/api/social-accounts"] });
+          }, 1000);
         }
       }, 1000);
 
@@ -419,8 +441,11 @@ export default function Accounts() {
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-slate-600">Webhook Connected</span>
                         <div className="flex items-center gap-2">
-                          <Badge variant={account.webhookConnected ? "default" : "outline"}>
-                            {account.webhookConnected ? "Connected" : "Not Connected"}
+                          <Badge 
+                            variant={account.webhookConnected ? "default" : "outline"}
+                            className={account.webhookConnected ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"}
+                          >
+                            {account.webhookConnected ? "✓ Connected" : "Not Connected"}
                           </Badge>
                           {!account.webhookConnected && (
                             <Button

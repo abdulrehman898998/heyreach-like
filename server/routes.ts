@@ -175,12 +175,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
         webhookConnected: webhookSubscribed,
       });
 
-      // Redirect back to frontend with success
-      res.redirect('/?instagram_connected=true');
+      // Create a success page that closes the popup and refreshes parent
+      const successHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Instagram Connected</title>
+          <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f0f9ff; }
+            .success { color: #059669; font-size: 18px; margin-bottom: 20px; }
+            .loading { color: #6b7280; }
+          </style>
+        </head>
+        <body>
+          <div class="success">✓ Instagram Connected Successfully!</div>
+          <div class="loading">Closing window...</div>
+          <script>
+            // Notify parent window and close popup
+            if (window.opener) {
+              window.opener.postMessage({ type: 'instagram_connected', success: true }, '*');
+            }
+            setTimeout(() => window.close(), 2000);
+          </script>
+        </body>
+        </html>
+      `;
+      res.send(successHtml);
       
     } catch (error) {
       console.error("Instagram OAuth callback error:", error);
-      res.redirect('/?instagram_error=true');
+      
+      // Create an error page that closes the popup
+      const errorHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Instagram Connection Failed</title>
+          <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #fef2f2; }
+            .error { color: #dc2626; font-size: 18px; margin-bottom: 20px; }
+            .loading { color: #6b7280; }
+          </style>
+        </head>
+        <body>
+          <div class="error">❌ Instagram Connection Failed</div>
+          <div class="loading">Closing window...</div>
+          <script>
+            // Notify parent window and close popup
+            if (window.opener) {
+              window.opener.postMessage({ type: 'instagram_connected', success: false, error: '${error.message}' }, '*');
+            }
+            setTimeout(() => window.close(), 3000);
+          </script>
+        </body>
+        </html>
+      `;
+      res.send(errorHtml);
     }
   });
 
