@@ -101,11 +101,13 @@ class AutomationService {
       const data = await googleSheetsService.fetchSheetData(sheet);
       
       // Convert sheet data to campaign targets
+      // Data structure: { profileUrl: string, message: string, rowNumber: number }
       const targets = data.map(row => ({
         campaignId: campaign.id,
-        profileUrl: row.profileUrl || row.profile_url || row.url,
-        customMessage: row.message || row.customMessage || null,
-      })).filter(target => target.profileUrl);
+        profileUrl: row.profileUrl,
+        customMessage: row.message,
+        processed: false,
+      })).filter(target => target.profileUrl && target.customMessage);
 
       await storage.createCampaignTargets(targets);
       

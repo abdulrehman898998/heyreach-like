@@ -337,6 +337,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate and process the Google Sheets URL
       const sheetData = await googleSheetsService.validateSheet(validatedData.sheetUrl);
       
+      console.log('Creating Google Sheet with data:', validatedData);
+      
       const sheet = await storage.createGoogleSheet(validatedData);
       await storage.createActivityLog({
         userId,

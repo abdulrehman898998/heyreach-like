@@ -88,16 +88,12 @@ export default function GoogleSheets() {
       const sheetData = {
         name: data.name,
         sheetUrl: `https://docs.google.com/spreadsheets/d/${data.sheetId}`,
-        range: `${data.sheetName}!${data.range}`,
+        range: `${data.sheetName}!${data.range}`, // A2:B10 format for Profile URLs + Messages
         accessToken: tokens!.access_token,
         refreshToken: tokens!.refresh_token,
       };
 
-      const response = await apiRequest("/api/google-sheets", {
-        method: "POST",
-        body: JSON.stringify(sheetData),
-      });
-      return response.json();
+      return await apiRequest("POST", "/api/google-sheets", sheetData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/google-sheets"] });
@@ -108,10 +104,11 @@ export default function GoogleSheets() {
         description: "Google Sheet connected successfully",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('Sheet addition error:', error);
       toast({
-        title: "Error",
-        description: "Failed to connect Google Sheet",
+        title: "Error", 
+        description: error?.message || "Failed to connect Google Sheet",
         variant: "destructive",
       });
     },
@@ -121,18 +118,22 @@ export default function GoogleSheets() {
     defaultValues: {
       name: "",
       sheetName: "",
-      range: "A:Z",
+      startRow: "2",
+      endRow: "10",
     },
   });
 
   const onSubmit = (data: any) => {
     if (!selectedSheet) return;
     
+    // Create range from row numbers (Column A = Profile URLs, Column B = Messages)
+    const range = `A${data.startRow}:B${data.endRow}`;
+    
     addSheetMutation.mutate({
       name: data.name,
       sheetId: selectedSheet.id,
       sheetName: data.sheetName,
-      range: data.range,
+      range: range,
     });
   };
 
@@ -234,49 +235,72 @@ export default function GoogleSheets() {
                       )}
                     />
 
+                    <FormField
+                      control={form.control}
+                      name="sheetName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Sheet Tab</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select sheet tab" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {loadingMetadata ? (
+                                <SelectItem value="loading" disabled>Loading...</SelectItem>
+                              ) : (
+                                sheetMetadata.map((tab: any) => (
+                                  <SelectItem key={tab.title} value={tab.title}>
+                                    {tab.title}
+                                  </SelectItem>
+                                ))
+                              )}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
                         control={form.control}
-                        name="sheetName"
+                        name="startRow"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Sheet Tab</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select sheet tab" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {loadingMetadata ? (
-                                  <SelectItem value="loading" disabled>Loading...</SelectItem>
-                                ) : (
-                                  sheetMetadata.map((tab: any) => (
-                                    <SelectItem key={tab.title} value={tab.title}>
-                                      {tab.title}
-                                    </SelectItem>
-                                  ))
-                                )}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="range"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Range</FormLabel>
+                            <FormLabel>Start Row</FormLabel>
                             <FormControl>
-                              <Input placeholder="A:Z" {...field} />
+                              <Input type="number" placeholder="2" {...field} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
+                      <FormField
+                        control={form.control}
+                        name="endRow"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>End Row</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder="10" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <h4 className="font-medium text-blue-900 mb-2">Sheet Structure Required:</h4>
+                      <ul className="text-sm text-blue-800 space-y-1">
+                        <li>• <strong>Column A:</strong> Instagram Profile URLs (e.g., https://instagram.com/username)</li>
+                        <li>• <strong>Column B:</strong> Custom Messages for each profile</li>
+                        <li>• <strong>Rows:</strong> Process from row {form.watch('startRow') || '2'} to {form.watch('endRow') || '10'}</li>
+                        <li>• <strong>Example:</strong> A2: "https://instagram.com/user1", B2: "Hello! I'd love to connect"</li>
+                      </ul>
                     </div>
 
                     <div className="flex justify-end space-x-2">
