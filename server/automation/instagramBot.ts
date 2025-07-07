@@ -23,6 +23,19 @@ export class InstagramBot {
     this.proxy = proxy;
   }
 
+  async checkLoginStatus(): Promise<boolean> {
+    try {
+      console.log('🔍 Checking Instagram login status...');
+      // Check if we're already logged in by looking for the home icon or profile elements
+      const isLoggedIn = await this.page.locator('svg[aria-label="Home"], a[href*="/accounts/edit/"]').isVisible({ timeout: 3000 });
+      console.log(`Login status: ${isLoggedIn ? 'Logged in' : 'Not logged in'}`);
+      return isLoggedIn;
+    } catch {
+      console.log('Login status check failed - assuming not logged in');
+      return false;
+    }
+  }
+
   async initialize(): Promise<void> {
     try {
       // Create unique user data directory to avoid session conflicts
@@ -247,10 +260,13 @@ export class InstagramBot {
         await this.page.waitForTimeout(2000);
         
         // Check if logged in
+        console.log('🔍 Checking if logged into Instagram...');
         const isLoggedIn = await this.checkLoginStatus();
         if (!isLoggedIn) {
-          console.log('Not logged in, attempting login...');
+          console.log('🔐 Not logged in, attempting login...');
           await this.login();
+        } else {
+          console.log('✅ Already logged into Instagram');
         }
         
         // Now navigate to the target profile with longer timeout
