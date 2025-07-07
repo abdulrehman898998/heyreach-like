@@ -1,4 +1,4 @@
-import { chromium, type Browser, type Page } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 
 interface InstagramAccount {
   username: string;
@@ -13,7 +13,7 @@ interface ProxyConfig {
 }
 
 export class InstagramBot {
-  private browser: Browser | null = null;
+  private context: BrowserContext | null = null;
   private page: Page | null = null;
   private account: InstagramAccount;
   private proxy?: ProxyConfig;
@@ -52,12 +52,9 @@ export class InstagramBot {
       }
 
       console.log(`🔄 Using persistent profile: ${userDataDir}`);
-      // Use launchPersistentContext for user data persistence
-      this.browser = await chromium.launchPersistentContext(userDataDir, launchOptions);
-
-      // Get existing page or create new one
-      const pages = this.browser.pages();
-      this.page = pages.length > 0 ? pages[0] : await this.browser.newPage();
+      // Use launchPersistentContext which returns a context directly (not a browser)
+      this.context = await chromium.launchPersistentContext(userDataDir, launchOptions);
+      this.page = await this.context.newPage();
       
       // Set user agent using setExtraHTTPHeaders to match working code
       await this.page.setExtraHTTPHeaders({
@@ -411,9 +408,9 @@ export class InstagramBot {
         await this.page.close();
         this.page = null;
       }
-      if (this.browser) {
-        await this.browser.close();
-        this.browser = null;
+      if (this.context) {
+        await this.context.close();
+        this.context = null;
       }
     } catch (error) {
       console.error('Error closing browser:', error);
