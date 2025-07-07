@@ -122,6 +122,8 @@ Changelog:
 - July 07, 2025. Built complete Instagram webhook system with OAuth integration - users can connect Instagram Business accounts for reply tracking
 - July 07, 2025. Implemented 3-layer webhook filtering system to process only customer replies, not outgoing automation messages
 - July 07, 2025. Message tracking system 95% complete - only missing Instagram message ID capture when sending for perfect reply matching
+- July 07, 2025. Fixed Google Sheets integration with proper Playwright automation structure (Column A = URLs, Column B = Messages, row range selection)
+- July 07, 2025. Configured Meta App OAuth credentials for Instagram webhook connections - system now 98% production ready
 
 ## User Preferences
 

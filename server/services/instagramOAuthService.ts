@@ -7,8 +7,8 @@ class InstagramOAuthService {
 
   constructor() {
     // These will be our Meta App credentials
-    this.clientId = process.env.INSTAGRAM_APP_ID || '';
-    this.clientSecret = process.env.INSTAGRAM_APP_SECRET || '';
+    this.clientId = process.env.META_APP_ID || '';
+    this.clientSecret = process.env.META_APP_SECRET || '';
     this.redirectUri = process.env.REPLIT_DEV_DOMAIN 
       ? `https://${process.env.REPLIT_DEV_DOMAIN}/api/auth/instagram/callback`
       : 'http://localhost:5000/api/auth/instagram/callback';
