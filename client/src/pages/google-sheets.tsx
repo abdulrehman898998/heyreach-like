@@ -59,8 +59,9 @@ export default function GoogleSheets() {
 
   const connectMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("/api/auth/google", {
+      const response = await fetch("/api/auth/google", {
         method: "GET",
+        credentials: "include",
       });
       if (!response.ok) {
         const errorData = await response.json();
