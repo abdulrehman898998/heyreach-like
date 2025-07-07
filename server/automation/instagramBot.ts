@@ -74,15 +74,11 @@ export class InstagramBot {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
       });
 
-      // Navigate to Instagram
-      await this.page.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded' });
-      await this.page.waitForTimeout(2000);
+      // Setup proactive popup handlers like local code BEFORE navigation
+      await this.setupPopupHandlers();
 
-      // Handle cookie banner
-      await this.handlePopups();
-
-      // Login
-      await this.login();
+      // Don't navigate to Instagram in initialize - let sendMessage handle navigation
+      console.log('✅ Instagram bot initialized successfully');
       
     } catch (error) {
       if (error.message.includes('Executable doesn\'t exist')) {
@@ -139,6 +135,43 @@ export class InstagramBot {
       }
     } catch (error) {
       console.log('No popups to handle or error handling popups:', error.message);
+    }
+  }
+
+  async setupPopupHandlers() {
+    console.log('🔧 Setting up proactive popup handlers...');
+    
+    try {
+      // Handler for "Save login info" popup (only when it appears as a modal)
+      await this.page.addLocatorHandler(
+        this.page.locator('div[role="dialog"] button:has-text("Not Now")'),
+        async () => {
+          console.log('🔄 Auto-handling "Save login info" popup...');
+          await this.page.locator('div[role="dialog"] button:has-text("Not Now")').click();
+        }
+      );
+
+      // Handler for "Turn on notifications" popup (only in dialog context)
+      await this.page.addLocatorHandler(
+        this.page.locator('div[role="dialog"] button:has-text("Not Now")').filter({ hasText: /notification/i }),
+        async () => {
+          console.log('🔄 Auto-handling "Turn on notifications" popup...');
+          await this.page.locator('div[role="dialog"] button:has-text("Not Now")').click();
+        }
+      );
+
+      // Handler for unexpected "Log in" modal popup (only in dialog context, not the main login form)
+      await this.page.addLocatorHandler(
+        this.page.locator('div[role="dialog"] button:has-text("Log in")').or(this.page.locator('div[role="dialog"] a:has-text("Log in")')),
+        async () => {
+          console.log('🔄 Auto-handling unexpected "Log in" modal popup...');
+          await this.page.locator('div[role="dialog"] button:has-text("Log in")').click();
+        }
+      );
+
+      console.log('✅ Popup handlers setup complete');
+    } catch (error) {
+      console.error('❌ Error setting up popup handlers:', error.message);
     }
   }
 
