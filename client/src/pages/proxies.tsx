@@ -35,21 +35,57 @@ export default function Proxies() {
       let host, port, username, password;
       
       try {
-        const url = new URL(data.proxyUrl);
-        host = url.hostname;
-        port = parseInt(url.port);
-        username = url.username || null;
-        password = url.password || null;
-      } catch (error) {
-        // Fallback for simple host:port format
-        const parts = data.proxyUrl.split(':');
-        if (parts.length === 2) {
-          host = parts[0];
-          port = parseInt(parts[1]);
-          username = null;
-          password = null;
+        // Handle URLs with special characters by URL encoding first
+        let urlToTest = data.proxyUrl;
+        
+        // If it looks like a complete proxy URL but fails parsing, try encoding special chars
+        if (urlToTest.includes('@') && urlToTest.includes('://')) {
+          const url = new URL(urlToTest);
+          host = url.hostname;
+          port = parseInt(url.port) || 80;
+          username = decodeURIComponent(url.username) || null;
+          password = decodeURIComponent(url.password) || null;
         } else {
-          throw new Error('Invalid proxy URL format');
+          throw new Error('Not a complete URL');
+        }
+      } catch (error) {
+        console.log('URL parsing failed, trying manual parsing:', error.message);
+        
+        // Manual parsing for complex URLs with special characters
+        if (data.proxyUrl.includes('://') && data.proxyUrl.includes('@')) {
+          // Format: http://user:pass@host:port
+          const protocolSplit = data.proxyUrl.split('://');
+          if (protocolSplit.length === 2) {
+            const remainder = protocolSplit[1]; // user:pass@host:port
+            const atSplit = remainder.split('@');
+            if (atSplit.length === 2) {
+              const authPart = atSplit[0]; // user:pass
+              const hostPart = atSplit[1]; // host:port
+              
+              const authSplit = authPart.split(':');
+              username = authSplit[0] || null;
+              password = authSplit.slice(1).join(':') || null; // Join in case password contains ':'
+              
+              const hostSplit = hostPart.split(':');
+              host = hostSplit[0];
+              port = parseInt(hostSplit[1]) || 80;
+            } else {
+              throw new Error('Invalid proxy URL format - missing @ separator');
+            }
+          } else {
+            throw new Error('Invalid proxy URL format - invalid protocol');
+          }
+        } else {
+          // Fallback for simple host:port format
+          const parts = data.proxyUrl.split(':');
+          if (parts.length === 2) {
+            host = parts[0];
+            port = parseInt(parts[1]);
+            username = null;
+            password = null;
+          } else {
+            throw new Error('Invalid proxy URL format - use http://user:pass@host:port or host:port');
+          }
         }
       }
       
@@ -77,10 +113,11 @@ export default function Proxies() {
         description: "Proxy added successfully",
       });
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error('Proxy add error:', error);
       toast({
         title: "Error",
-        description: "Failed to add proxy",
+        description: error.message || "Failed to add proxy",
         variant: "destructive",
       });
     },
