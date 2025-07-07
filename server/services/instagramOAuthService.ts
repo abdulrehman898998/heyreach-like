@@ -11,6 +11,8 @@ class InstagramOAuthService {
     this.clientSecret = process.env.META_APP_SECRET || '';
     this.redirectUri = process.env.REPLIT_DEV_DOMAIN 
       ? `https://${process.env.REPLIT_DEV_DOMAIN}/api/auth/instagram/callback`
+      : process.env.REPL_ID
+      ? `https://${process.env.REPL_ID}.picard.prod.repl.dev/api/auth/instagram/callback`
       : 'http://localhost:5000/api/auth/instagram/callback';
   }
 
