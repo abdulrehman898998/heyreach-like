@@ -165,6 +165,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Google OAuth routes
+  app.get("/api/auth/google", isAuthenticated, async (req: any, res) => {
+    try {
+      const authUrl = googleSheetsService.getAuthUrl(req.user.claims.sub);
+      res.json({ authUrl });
+    } catch (error) {
+      console.error("Error generating Google auth URL:", error);
+      res.status(500).json({ error: "Failed to generate auth URL" });
+    }
+  });
+
+  app.get("/api/auth/google/callback", async (req, res) => {
+    try {
+      const { code, state: userId } = req.query;
+      
+      if (!code || !userId) {
+        return res.status(400).json({ error: "Missing authorization code or user ID" });
+      }
+
+      const tokens = await googleSheetsService.exchangeCodeForTokens(code as string);
+      
+      // Redirect to frontend with tokens
+      res.redirect(`http://localhost:5000/google-sheets?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}`);
+    } catch (error) {
+      console.error("Error handling Google OAuth callback:", error);
+      res.status(500).json({ error: "Failed to authenticate with Google" });
+    }
+  });
+
+  app.get("/api/google/sheets", isAuthenticated, async (req: any, res) => {
+    try {
+      const { access_token, refresh_token } = req.query;
+      
+      if (!access_token || !refresh_token) {
+        return res.status(400).json({ error: "Missing access tokens" });
+      }
+
+      const sheets = await googleSheetsService.getUserSheets(
+        access_token as string, 
+        refresh_token as string
+      );
+      res.json(sheets);
+    } catch (error) {
+      console.error("Error fetching user sheets:", error);
+      res.status(500).json({ error: "Failed to fetch sheets" });
+    }
+  });
+
+  app.get("/api/google/sheets/:sheetId/metadata", isAuthenticated, async (req: any, res) => {
+    try {
+      const { sheetId } = req.params;
+      const { access_token, refresh_token } = req.query;
+      
+      if (!access_token || !refresh_token) {
+        return res.status(400).json({ error: "Missing access tokens" });
+      }
+
+      const metadata = await googleSheetsService.getSheetMetadata(
+        sheetId,
+        access_token as string,
+        refresh_token as string
+      );
+      res.json(metadata);
+    } catch (error) {
+      console.error("Error fetching sheet metadata:", error);
+      res.status(500).json({ error: "Failed to fetch sheet metadata" });
+    }
+  });
+
   // Google Sheets routes
   app.get('/api/google-sheets', isAuthenticated, async (req: any, res) => {
     try {

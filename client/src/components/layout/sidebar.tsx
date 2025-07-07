@@ -12,7 +12,7 @@ export default function Sidebar() {
     { name: "Dashboard", href: "/", icon: BarChart3 },
     { name: "Campaigns", href: "/campaigns", icon: Play },
     { name: "Accounts", href: "/accounts", icon: Users },
-    { name: "Google Sheets", href: "/sheets", icon: Sheet },
+    { name: "Google Sheets", href: "/google-sheets", icon: Sheet },
     { name: "Proxies", href: "/proxies", icon: Wifi },
     { name: "Analytics", href: "/analytics", icon: BarChart3 },
     { name: "Settings", href: "/settings", icon: Settings },

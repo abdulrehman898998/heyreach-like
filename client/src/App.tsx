@@ -10,6 +10,7 @@ import Campaigns from "@/pages/campaigns";
 import Accounts from "@/pages/accounts";
 import Analytics from "@/pages/analytics";
 import Sheets from "@/pages/sheets";
+import GoogleSheets from "@/pages/google-sheets";
 import Proxies from "@/pages/proxies";
 import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
@@ -42,6 +43,7 @@ function Router() {
               <Route path="/campaigns" component={Campaigns} />
               <Route path="/accounts" component={Accounts} />
               <Route path="/sheets" component={Sheets} />
+              <Route path="/google-sheets" component={GoogleSheets} />
               <Route path="/proxies" component={Proxies} />
               <Route path="/analytics" component={Analytics} />
               <Route path="/settings" component={SettingsPage} />
