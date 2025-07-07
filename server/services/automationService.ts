@@ -229,11 +229,34 @@ class AutomationService {
       } catch (error) {
         console.error(`Failed to send message to ${target.profileUrl}:`, error);
         
+        // Provide user-friendly error messages
+        let userFriendlyError = error instanceof Error ? error.message : 'Unknown error';
+        
+        if (userFriendlyError.includes('browserType.launchPersistentContext')) {
+          userFriendlyError = 'Browser setup failed - system issue with Chromium installation';
+        } else if (userFriendlyError.includes('Executable doesn\'t exist')) {
+          userFriendlyError = 'Browser not installed - contact support';
+        } else if (userFriendlyError.includes('2FA required')) {
+          userFriendlyError = 'Account requires 2FA code - add 2FA secret in account settings';
+        } else if (userFriendlyError.includes('Login failed')) {
+          userFriendlyError = 'Login failed - check username/password in account settings';
+        } else if (userFriendlyError.includes('proxy')) {
+          userFriendlyError = 'Proxy connection failed - check proxy settings';
+        }
+        
         this.broadcast(userId, {
           type: 'message_failed',
           campaignId: campaign.id,
           target: target.profileUrl,
-          error: error.message,
+          error: userFriendlyError,
+        });
+        
+        // Log detailed error for debugging
+        await storage.createActivityLog({
+          userId: campaign.userId,
+          action: 'message_failed',
+          details: `Failed to send to ${target.profileUrl}: ${userFriendlyError}`,
+          campaignId: campaign.id,
         });
       }
     }

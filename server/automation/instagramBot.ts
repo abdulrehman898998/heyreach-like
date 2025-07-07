@@ -43,7 +43,7 @@ export class InstagramBot {
       
       const launchOptions: any = {
         headless: false, // Debugging mode to see what's happening
-        executablePath: '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium-browser',
+        // Use default Playwright chromium installation instead of custom path
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
