@@ -187,7 +187,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const tokens = await googleSheetsService.exchangeCodeForTokens(code as string);
       
       // Redirect to frontend with tokens
-      res.redirect(`http://localhost:5000/google-sheets?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}`);
+      const frontendUrl = process.env.REPLIT_DEV_DOMAIN 
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}/google-sheets`
+        : 'http://localhost:5000/google-sheets';
+      res.redirect(`${frontendUrl}?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}`);
     } catch (error) {
       console.error("Error handling Google OAuth callback:", error);
       res.status(500).json({ error: "Failed to authenticate with Google" });

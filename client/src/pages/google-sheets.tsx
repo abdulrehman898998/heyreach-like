@@ -60,15 +60,21 @@ export default function GoogleSheets() {
   const connectMutation = useMutation({
     mutationFn: async () => {
       const response = await apiRequest("/api/auth/google");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to connect to Google');
+      }
       return response.json();
     },
     onSuccess: (data) => {
+      console.log('Google auth URL:', data.authUrl);
       window.location.href = data.authUrl;
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error('Google connection error:', error);
       toast({
         title: "Error",
-        description: "Failed to connect to Google",
+        description: error.message || "Failed to connect to Google",
         variant: "destructive",
       });
     },
