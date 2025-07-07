@@ -98,10 +98,19 @@ export default function Proxies() {
         isActive: true,
       };
 
-      const response = await apiRequest("/api/proxies", {
+      const response = await fetch("/api/proxies", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(proxyData),
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: "Network error" }));
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
+      
       return response.json();
     },
     onSuccess: () => {
