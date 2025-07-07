@@ -154,7 +154,7 @@ export default function NewCampaignModal({ open, onOpenChange }: NewCampaignModa
                       {googleSheets?.length > 0 ? (
                         googleSheets.map((sheet: any) => (
                           <SelectItem key={sheet.id} value={sheet.id.toString()}>
-                            {sheet.name} ({sheet.range || 'A:B'})
+                            {sheet.name}
                           </SelectItem>
                         ))
                       ) : (

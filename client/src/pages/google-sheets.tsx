@@ -86,7 +86,7 @@ export default function GoogleSheets() {
   const addSheetMutation = useMutation({
     mutationFn: async (data: { name: string; sheetId: string; sheetName: string; range: string }) => {
       const sheetData = {
-        name: data.name,
+        name: data.name, // Use the user-provided name exactly as entered
         sheetUrl: `https://docs.google.com/spreadsheets/d/${data.sheetId}`,
         range: `${data.sheetName}!${data.range}`, // A2:B10 format for Profile URLs + Messages
         accessToken: tokens!.access_token,
@@ -109,6 +109,28 @@ export default function GoogleSheets() {
       toast({
         title: "Error", 
         description: error?.message || "Failed to connect Google Sheet",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Add delete mutation
+  const deleteSheetMutation = useMutation({
+    mutationFn: async (sheetId: number) => {
+      return await apiRequest("DELETE", `/api/google-sheets/${sheetId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/google-sheets"] });
+      toast({
+        title: "Success",
+        description: "Google Sheet disconnected successfully",
+      });
+    },
+    onError: (error: any) => {
+      console.error('Sheet deletion error:', error);
+      toast({
+        title: "Error", 
+        description: error?.message || "Failed to disconnect Google Sheet",
         variant: "destructive",
       });
     },
@@ -350,19 +372,33 @@ export default function GoogleSheets() {
             {savedSheets.map((sheet: any) => (
               <Card key={sheet.id}>
                 <CardContent className="p-4">
-                  <div className="flex items-start space-x-3">
-                    <Sheet className="w-5 h-5 text-green-600 mt-1" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {sheet.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        Range: {sheet.range}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        Added {new Date(sheet.createdAt).toLocaleDateString()}
-                      </p>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-3">
+                      <Sheet className="w-5 h-5 text-green-600 mt-1" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {sheet.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Range: {sheet.range}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          Added {new Date(sheet.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => {
+                        if (confirm(`Are you sure you want to disconnect "${sheet.name}"?`)) {
+                          deleteSheetMutation.mutate(sheet.id);
+                        }
+                      }}
+                      disabled={deleteSheetMutation.isPending}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

@@ -403,6 +403,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete('/api/google-sheets/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const sheetId = parseInt(req.params.id);
+      
+      // Get sheet info before deleting for logging
+      const sheet = await storage.getGoogleSheet(sheetId);
+      if (!sheet || sheet.userId !== userId) {
+        return res.status(404).json({ message: "Google Sheet not found or access denied" });
+      }
+      
+      await storage.deleteGoogleSheet(sheetId);
+      await storage.createActivityLog({
+        userId,
+        action: 'google_sheet_deleted',
+        details: `Deleted Google Sheet: ${sheet.name}`,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting Google Sheet:", error);
+      res.status(500).json({ message: "Failed to delete Google Sheet" });
+    }
+  });
+
   // Campaigns routes
   app.get('/api/campaigns', isAuthenticated, async (req: any, res) => {
     try {
