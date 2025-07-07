@@ -61,7 +61,10 @@ export class InstagramBot {
       // Add proxy configuration if provided
       if (this.proxy) {
         launchOptions.proxy = this.proxy;
-        console.log(`Using proxy: ${this.proxy.server}`);
+        console.log(`🌐 Using proxy: ${this.proxy.server}`);
+        console.log(`🔐 Proxy auth: ${this.proxy.username ? 'YES' : 'NO'}`);
+      } else {
+        console.log('🌐 No proxy configured - using direct connection');
       }
 
       console.log(`🔄 Using persistent profile: ${userDataDir}`);
@@ -76,6 +79,18 @@ export class InstagramBot {
 
       // Setup proactive popup handlers like local code BEFORE navigation
       await this.setupPopupHandlers();
+
+      // Test proxy connection by checking IP
+      if (this.proxy) {
+        try {
+          await this.page.goto('https://httpbin.org/ip', { timeout: 10000 });
+          const ipText = await this.page.textContent('body');
+          const ipData = JSON.parse(ipText);
+          console.log(`🔍 Current IP via proxy: ${ipData.origin}`);
+        } catch (error) {
+          console.log('⚠️ Could not verify proxy IP:', error.message);
+        }
+      }
 
       // Don't navigate to Instagram in initialize - let sendMessage handle navigation
       console.log('✅ Instagram bot initialized successfully');
