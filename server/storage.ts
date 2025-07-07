@@ -7,6 +7,7 @@ import {
   messages,
   activityLogs,
   proxies,
+  replies,
   type User,
   type UpsertUser,
   type SocialAccount,
@@ -23,6 +24,8 @@ import {
   type InsertActivityLog,
   type Proxy,
   type InsertProxy,
+  type Reply,
+  type InsertReply,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, count, sum } from "drizzle-orm";
