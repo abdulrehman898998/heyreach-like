@@ -36,6 +36,13 @@ class InstagramOAuthService {
   }
 
   /**
+   * Check if Instagram OAuth is properly configured
+   */
+  isConfigured(): boolean {
+    return !!(this.clientId && this.clientSecret);
+  }
+
+  /**
    * Step 2: Exchange authorization code for access token
    */
   async exchangeCodeForTokens(code: string): Promise<{
