@@ -105,6 +105,7 @@ SocialBot Pro is a full-stack web application that automates Instagram and Faceb
 - **Frontend**: Vite build with optimized assets served statically
 - **Backend**: esbuild bundle with external dependencies
 - **Database**: Drizzle migrations with schema validation
+- **Browser Profiles**: Persistent filesystem storage (not database)
 
 ### Environment Configuration
 - Database URL configuration for PostgreSQL connection
