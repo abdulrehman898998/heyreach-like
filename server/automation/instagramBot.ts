@@ -55,12 +55,16 @@ export class InstagramBot {
       // Use launchPersistentContext for user data persistence
       this.browser = await chromium.launchPersistentContext(userDataDir, launchOptions);
 
-      this.page = this.browser.pages()[0] || await this.browser.newPage();
+      // Get existing page or create new one
+      const pages = this.browser.pages();
+      this.page = pages.length > 0 ? pages[0] : await this.browser.newPage();
       
-      // Set user agent
-      await this.page.setUserAgent(
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-      );
+      // Set user agent (check if method exists)
+      if (typeof this.page.setUserAgent === 'function') {
+        await this.page.setUserAgent(
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+        );
+      }
 
       // Navigate to Instagram
       await this.page.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded' });

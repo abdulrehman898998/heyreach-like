@@ -126,6 +126,7 @@ Changelog:
 - July 07, 2025. Configured Meta App OAuth credentials for Instagram webhook connections - system now 98% production ready
 - July 07, 2025. Fixed Google Sheets OAuth token storage issue - authentication and data loading now working perfectly, campaign successfully loaded 5 targets from user's sheet
 - July 07, 2025. Created comprehensive local setup documentation with database schema, environment templates, AWS setup guide, and automated testing script for local development
+- July 07, 2025. Fixed critical Instagram bot automation issues - resolved setUserAgent error with persistent context and fixed Google Sheets cascade deletion constraints
 
 ## User Preferences
 

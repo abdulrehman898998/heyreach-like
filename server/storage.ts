@@ -175,6 +175,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteGoogleSheet(id: number): Promise<void> {
+    // First, update any campaigns using this sheet to remove the reference
+    await db
+      .update(campaigns)
+      .set({ googleSheetId: null })
+      .where(eq(campaigns.googleSheetId, id));
+    
+    // Then delete the Google Sheet
     await db.delete(googleSheets).where(eq(googleSheets.id, id));
   }
 
