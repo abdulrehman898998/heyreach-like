@@ -5,6 +5,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertGoogleSheetSchema } from "@shared/schema";
 import { z } from "zod";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
+import { isUnauthorizedError } from "@/lib/authUtils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,15 +14,31 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Sheet, ExternalLink, Loader2 } from "lucide-react";
+import { Plus, Sheet, ExternalLink, Loader2, Trash2 } from "lucide-react";
 
 type GoogleSheetForm = z.infer<typeof insertGoogleSheetSchema>;
 
 export default function GoogleSheets() {
+  const { isAuthenticated, isLoading } = useAuth();
   const [isConnecting, setIsConnecting] = useState(false);
   const [tokens, setTokens] = useState<{ access_token: string; refresh_token: string } | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<any>(null);
   const { toast } = useToast();
+
+  // Redirect to home if not authenticated
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      toast({
+        title: "Session expired",
+        description: "Please log in again to continue.",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        window.location.href = "/api/login";
+      }, 1000);
+      return;
+    }
+  }, [isAuthenticated, isLoading, toast]);
 
   // Check for tokens in URL params
   useEffect(() => {
@@ -37,11 +55,12 @@ export default function GoogleSheets() {
 
   const { data: savedSheets = [], isLoading: loadingSavedSheets } = useQuery({
     queryKey: ["/api/google-sheets"],
+    enabled: isAuthenticated,
   });
 
   const { data: userSheets = [], isLoading: loadingUserSheets } = useQuery({
     queryKey: ["/api/google/sheets", tokens?.access_token],
-    enabled: !!tokens,
+    enabled: !!tokens && isAuthenticated,
     queryFn: async () => {
       const response = await fetch(`/api/google/sheets?access_token=${tokens!.access_token}&refresh_token=${tokens!.refresh_token}`);
       return response.json();
@@ -50,7 +69,7 @@ export default function GoogleSheets() {
 
   const { data: sheetMetadata = [], isLoading: loadingMetadata } = useQuery({
     queryKey: ["/api/google/sheets", selectedSheet?.id, "metadata"],
-    enabled: !!selectedSheet && !!tokens,
+    enabled: !!selectedSheet && !!tokens && isAuthenticated,
     queryFn: async () => {
       const response = await fetch(`/api/google/sheets/${selectedSheet.id}/metadata?access_token=${tokens!.access_token}&refresh_token=${tokens!.refresh_token}`);
       return response.json();
@@ -159,10 +178,31 @@ export default function GoogleSheets() {
     });
   };
 
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <span className="ml-2">Loading...</span>
+      </div>
+    );
+  }
+
+  // Don't render content if not authenticated (will redirect)
+  if (!isAuthenticated) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <span className="ml-2">Redirecting to login...</span>
+      </div>
+    );
+  }
+
   if (loadingSavedSheets) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin" />
+        <span className="ml-2">Loading Google Sheets...</span>
       </div>
     );
   }
