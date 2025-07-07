@@ -25,6 +25,9 @@ export class InstagramBot {
 
   async initialize(): Promise<void> {
     try {
+      // Create user data directory for persistent sessions
+      const userDataDir = `./chromium_profiles/${this.account.username.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      
       const launchOptions: any = {
         headless: false, // Show browser window for debugging
         args: [
@@ -34,7 +37,8 @@ export class InstagramBot {
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
-          '--disable-gpu'
+          '--disable-gpu',
+          `--user-data-dir=${userDataDir}` // Persistent user data
         ]
       };
 
@@ -44,6 +48,7 @@ export class InstagramBot {
         console.log(`Using proxy: ${this.proxy.server}`);
       }
 
+      console.log(`🔄 Using persistent profile: ${userDataDir}`);
       this.browser = await chromium.launch(launchOptions);
 
       this.page = await this.browser.newPage();
