@@ -123,6 +123,19 @@ export const messages = pgTable("messages", {
 
 
 
+// Proxies
+export const proxies = pgTable("proxies", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: varchar("name").notNull(),
+  host: varchar("host").notNull(),
+  port: integer("port").notNull(),
+  username: varchar("username"),
+  password: text("password"), // encrypted
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Activity logs
 export const activityLogs = pgTable("activity_logs", {
   id: serial("id").primaryKey(),
@@ -138,6 +151,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   socialAccounts: many(socialAccounts),
   campaigns: many(campaigns),
   googleSheets: many(googleSheets),
+  proxies: many(proxies),
   activityLogs: many(activityLogs),
 }));
 
@@ -193,6 +207,13 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   }),
 }));
 
+export const proxiesRelations = relations(proxies, ({ one }) => ({
+  user: one(users, {
+    fields: [proxies.userId],
+    references: [users.id],
+  }),
+}));
+
 export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
   user: one(users, {
     fields: [activityLogs.userId],
@@ -221,6 +242,9 @@ export type InsertMessage = typeof messages.$inferInsert;
 
 
 
+export type Proxy = typeof proxies.$inferSelect;
+export type InsertProxy = typeof proxies.$inferInsert;
+
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = typeof activityLogs.$inferInsert;
 
@@ -247,6 +271,11 @@ export const insertCampaignSchema = createInsertSchema(campaigns).omit({
   positiveReplies: true,
   startedAt: true,
   completedAt: true,
+});
+
+export const insertProxySchema = createInsertSchema(proxies).omit({
+  id: true,
+  createdAt: true,
 });
 
 

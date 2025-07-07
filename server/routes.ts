@@ -10,6 +10,7 @@ import {
   insertSocialAccountSchema,
   insertGoogleSheetSchema,
   insertCampaignSchema,
+  insertProxySchema,
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -316,6 +317,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching activity logs:", error);
       res.status(500).json({ message: "Failed to fetch activity logs" });
+    }
+  });
+
+  // Proxy routes
+  app.get('/api/proxies', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const proxies = await storage.getProxiesByUser(userId);
+      res.json(proxies);
+    } catch (error) {
+      console.error("Error fetching proxies:", error);
+      res.status(500).json({ message: "Failed to fetch proxies" });
+    }
+  });
+
+  app.post('/api/proxies', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const validatedData = insertProxySchema.parse({
+        ...req.body,
+        userId,
+      });
+
+      const proxy = await storage.createProxy(validatedData);
+      await storage.createActivityLog({
+        userId,
+        action: 'proxy_added',
+        details: `Added proxy: ${proxy.name} (${proxy.host}:${proxy.port})`,
+      });
+
+      res.json(proxy);
+    } catch (error) {
+      console.error("Error creating proxy:", error);
+      res.status(400).json({ message: "Failed to create proxy" });
+    }
+  });
+
+  app.put('/api/proxies/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const proxyId = parseInt(req.params.id);
+      
+      const validatedData = insertProxySchema.partial().parse(req.body);
+      const updatedProxy = await storage.updateProxy(proxyId, validatedData);
+
+      await storage.createActivityLog({
+        userId,
+        action: 'proxy_updated',
+        details: `Updated proxy: ${updatedProxy.name}`,
+      });
+
+      res.json(updatedProxy);
+    } catch (error) {
+      console.error("Error updating proxy:", error);
+      res.status(400).json({ message: "Failed to update proxy" });
+    }
+  });
+
+  app.delete('/api/proxies/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const proxyId = parseInt(req.params.id);
+      
+      await storage.deleteProxy(proxyId);
+      await storage.createActivityLog({
+        userId,
+        action: 'proxy_deleted',
+        details: `Deleted proxy (ID: ${proxyId})`,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting proxy:", error);
+      res.status(500).json({ message: "Failed to delete proxy" });
     }
   });
 

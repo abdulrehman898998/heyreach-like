@@ -1,11 +1,12 @@
 import { storage } from "../storage";
 import { googleSheetsService } from "./googleSheetsService";
 import { InstagramBot } from "../automation/instagramBot";
-import type { Campaign, SocialAccount, CampaignTarget } from "@shared/schema";
+import type { Campaign, SocialAccount, CampaignTarget, Proxy } from "@shared/schema";
 
 class AutomationService {
   private runningCampaigns = new Map<number, { abort: () => void }>();
   private broadcastFunction?: (userId: string, data: any) => void;
+  private proxyRotationIndex = new Map<string, number>(); // Track proxy rotation per user
 
   setBroadcastFunction(fn: (userId: string, data: any) => void) {
     this.broadcastFunction = fn;
@@ -15,6 +16,23 @@ class AutomationService {
     if (this.broadcastFunction) {
       this.broadcastFunction(userId, data);
     }
+  }
+
+  private async getNextProxy(userId: string): Promise<Proxy | null> {
+    const proxies = await storage.getActiveProxiesByUser(userId);
+    if (proxies.length === 0) {
+      return null;
+    }
+
+    // Get current rotation index for this user
+    const currentIndex = this.proxyRotationIndex.get(userId) || 0;
+    const proxy = proxies[currentIndex];
+
+    // Update rotation index for next use
+    const nextIndex = (currentIndex + 1) % proxies.length;
+    this.proxyRotationIndex.set(userId, nextIndex);
+
+    return proxy;
   }
 
   async startCampaign(campaignId: number, userId: string) {
@@ -207,12 +225,25 @@ class AutomationService {
     });
 
     try {
+      // Get next proxy in rotation
+      const proxy = await this.getNextProxy(userId);
+      let proxyConfig = undefined;
+
+      if (proxy) {
+        proxyConfig = {
+          server: `${proxy.host}:${proxy.port}`,
+          username: proxy.username || undefined,
+          password: proxy.password || undefined,
+        };
+        console.log(`Using proxy: ${proxy.name} (${proxy.host}:${proxy.port})`);
+      }
+
       if (campaign.platform === 'instagram') {
         const bot = new InstagramBot({
           username: account.username,
           password: Buffer.from(account.password, 'base64').toString(), // Decrypt
           twofa: account.twofa || undefined,
-        });
+        }, proxyConfig);
 
         await bot.initialize();
         await bot.sendDirectMessage(target.profileUrl, message.content);

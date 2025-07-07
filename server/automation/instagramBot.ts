@@ -6,18 +6,26 @@ interface InstagramAccount {
   twofa?: string;
 }
 
+interface ProxyConfig {
+  server: string;
+  username?: string;
+  password?: string;
+}
+
 export class InstagramBot {
   private browser: Browser | null = null;
   private page: Page | null = null;
   private account: InstagramAccount;
+  private proxy?: ProxyConfig;
 
-  constructor(account: InstagramAccount) {
+  constructor(account: InstagramAccount, proxy?: ProxyConfig) {
     this.account = account;
+    this.proxy = proxy;
   }
 
   async initialize(): Promise<void> {
     try {
-      this.browser = await chromium.launch({
+      const launchOptions: any = {
         headless: true,
         args: [
           '--no-sandbox',
@@ -28,7 +36,15 @@ export class InstagramBot {
           '--no-zygote',
           '--disable-gpu'
         ]
-      });
+      };
+
+      // Add proxy configuration if provided
+      if (this.proxy) {
+        launchOptions.proxy = this.proxy;
+        console.log(`Using proxy: ${this.proxy.server}`);
+      }
+
+      this.browser = await chromium.launch(launchOptions);
 
       this.page = await this.browser.newPage();
       

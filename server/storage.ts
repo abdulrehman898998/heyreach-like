@@ -6,6 +6,7 @@ import {
   campaignTargets,
   messages,
   activityLogs,
+  proxies,
   type User,
   type UpsertUser,
   type SocialAccount,
@@ -20,6 +21,8 @@ import {
   type InsertMessage,
   type ActivityLog,
   type InsertActivityLog,
+  type Proxy,
+  type InsertProxy,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, count, sum } from "drizzle-orm";
@@ -58,7 +61,12 @@ export interface IStorage {
   getMessagesByCampaign(campaignId: number): Promise<Message[]>;
   updateMessage(id: number, updates: Partial<Message>): Promise<Message>;
 
-
+  // Proxies
+  createProxy(proxy: InsertProxy): Promise<Proxy>;
+  getProxiesByUser(userId: string): Promise<Proxy[]>;
+  getActiveProxiesByUser(userId: string): Promise<Proxy[]>;
+  updateProxy(id: number, updates: Partial<Proxy>): Promise<Proxy>;
+  deleteProxy(id: number): Promise<void>;
 
   // Activity logs
   createActivityLog(log: InsertActivityLog): Promise<ActivityLog>;
@@ -221,7 +229,40 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  // Proxies
+  async createProxy(proxy: InsertProxy): Promise<Proxy> {
+    const [created] = await db.insert(proxies).values(proxy).returning();
+    return created;
+  }
 
+  async getProxiesByUser(userId: string): Promise<Proxy[]> {
+    return await db
+      .select()
+      .from(proxies)
+      .where(eq(proxies.userId, userId))
+      .orderBy(desc(proxies.createdAt));
+  }
+
+  async getActiveProxiesByUser(userId: string): Promise<Proxy[]> {
+    return await db
+      .select()
+      .from(proxies)
+      .where(and(eq(proxies.userId, userId), eq(proxies.isActive, true)))
+      .orderBy(desc(proxies.createdAt));
+  }
+
+  async updateProxy(id: number, updates: Partial<Proxy>): Promise<Proxy> {
+    const [updated] = await db
+      .update(proxies)
+      .set(updates)
+      .where(eq(proxies.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteProxy(id: number): Promise<void> {
+    await db.delete(proxies).where(eq(proxies.id, id));
+  }
 
   // Activity logs
   async createActivityLog(log: InsertActivityLog): Promise<ActivityLog> {

@@ -117,8 +117,10 @@ SocialBot Pro is a full-stack web application that automates Instagram and Faceb
 Changelog:
 - July 07, 2025. Initial setup
 - July 07, 2025. Removed reply tracking functionality per user request to simplify platform
+- July 07, 2025. Added rotating proxy support with user management interface for improved automation performance
 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
 Project preferences: Skip reply tracking features as they are too complex. Focus on core automation features for Instagram/Facebook messaging.
+Feature requests: Rotating proxy support for users to add proxy servers with username/password authentication.

@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Bot, BarChart3, Play, Users, Sheet, Settings, LogOut } from "lucide-react";
+import { Bot, BarChart3, Play, Users, Sheet, Wifi, Settings, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -13,6 +13,7 @@ export default function Sidebar() {
     { name: "Campaigns", href: "/campaigns", icon: Play },
     { name: "Accounts", href: "/accounts", icon: Users },
     { name: "Google Sheets", href: "/sheets", icon: Sheet },
+    { name: "Proxies", href: "/proxies", icon: Wifi },
     { name: "Analytics", href: "/analytics", icon: BarChart3 },
     { name: "Settings", href: "/settings", icon: Settings },
   ];
