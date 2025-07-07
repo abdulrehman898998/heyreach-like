@@ -128,6 +128,7 @@ Changelog:
 - July 07, 2025. Created comprehensive local setup documentation with database schema, environment templates, AWS setup guide, and automated testing script for local development
 - July 07, 2025. Fixed critical Instagram bot automation issues - resolved setUserAgent error with persistent context and fixed Google Sheets cascade deletion constraints
 - July 07, 2025. Added complete account editing functionality - users can now edit Instagram/Facebook account credentials through web interface with edit modal and PUT API endpoint
+- July 07, 2025. Fixed Instagram automation timeout issues by implementing sophisticated message button detection with multiple fallback selectors, retry logic, and robust navigation handling from proven local automation code
 
 ## User Preferences
 

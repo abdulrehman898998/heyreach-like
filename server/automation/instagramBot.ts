@@ -237,30 +237,173 @@ export class InstagramBot {
   async sendDirectMessage(profileUrl: string, message: string): Promise<void> {
     if (!this.page) throw new Error('Bot not initialized');
 
+    const maxRetries = 3;
+    let attempt = 0;
+    
+    while (attempt < maxRetries) {
+      try {
+        attempt++;
+        console.log(`Navigating to profile (attempt ${attempt}/${maxRetries}): ${profileUrl}`);
+        
+        await this.page.waitForTimeout(1000 + Math.random() * 2000);
+        await this.page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await this.page.waitForTimeout(2000);
+        
+        console.log('Checking for Instagram modal popup after profile navigation...');
+        await this.handlePostLoginPopups();
+        
+        const currentUrl = this.page.url();
+        console.log(`Current URL after navigation: ${currentUrl}`);
+        
+        if (currentUrl.includes('/accounts/login/') || currentUrl.includes('/accounts/challenge/')) {
+          console.log('Login required, redirecting to login...');
+          await this.login();
+          console.log(`Re-navigating to profile after login: ${profileUrl}`);
+          await this.page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+          await this.page.waitForTimeout(2000);
+        }
+        
+        const finalUrl = this.page.url();
+        if (finalUrl.includes('instagram.com') && !finalUrl.includes(profileUrl.split('/').pop() || '') && 
+            (finalUrl.endsWith('/') || finalUrl.includes('/feed/') || finalUrl.includes('/explore/'))) {
+          console.log(`Redirected to homepage or unexpected page: ${finalUrl}`);
+          if (attempt < maxRetries) {
+            console.log('Retrying navigation...');
+            await this.page.waitForTimeout(3000);
+            continue;
+          } else {
+            throw new Error('Instagram keeps redirecting away from target profile');
+          }
+        }
+
+        await this.page.waitForSelector('header', { state: 'visible', timeout: 10000 });
+        await this.page.waitForTimeout(1000);
+        break;
+        
+      } catch (error) {
+        console.error(`Attempt ${attempt} failed: ${error.message}`);
+        if (attempt >= maxRetries) {
+          throw error;
+        }
+        console.log(`Waiting before retry attempt ${attempt + 1}...`);
+        await this.page.waitForTimeout(3000);
+      }
+    }
+    
     try {
-      // Navigate to profile
-      await this.page.goto(profileUrl, { waitUntil: 'domcontentloaded' });
+      await this.page.waitForTimeout(500 + Math.random() * 1000);
+      
+      let messageButton = this.page.locator('header').getByRole('button', { name: 'Message' });
+      if (!(await messageButton.count())) {
+        messageButton = this.page.locator('button:has-text("Message")');
+        if (!(await messageButton.count())) {
+          messageButton = this.page.locator('a:has-text("Message")');
+        }
+        if (!(await messageButton.count())) {
+          messageButton = this.page.locator('div[role="button"]:has-text("Message")');
+        }
+      }
+
+      await messageButton.first().waitFor({ state: 'visible', timeout: 10000 });
+      await this.page.waitForTimeout(300 + Math.random() * 500);
+      await messageButton.first().click();
+      
+      await this.handlePostLoginPopups();
+      await this.page.waitForTimeout(2000 + Math.random() * 1000);
+
+      const messageInputSelectors = [
+        'div[contenteditable="true"][data-testid="message-input"]',
+        'div[contenteditable="true"][aria-label*="Message"]',
+        'div[role="textbox"][contenteditable="true"]',
+        'div[contenteditable="true"]',
+        'textarea[placeholder*="Message"]'
+      ];
+
+      let messageInput = null;
+      let inputFound = false;
+
+      for (const selector of messageInputSelectors) {
+        try {
+          messageInput = this.page.locator(selector).first();
+          await messageInput.waitFor({ state: 'visible', timeout: 3000 });
+          inputFound = true;
+          break;
+        } catch (e) {
+          continue;
+        }
+      }
+
+      if (!inputFound) {
+        try {
+          const allEditableElements = await this.page.locator('[contenteditable="true"]').all();
+          if (allEditableElements.length > 0) {
+            messageInput = this.page.locator('[contenteditable="true"]').last();
+            inputFound = true;
+          }
+        } catch (e) {
+          // Ignore errors
+        }
+      }
+
+      if (!inputFound) {
+        throw new Error('Could not find message input field with any selector');
+      }
+
+      await this.page.waitForTimeout(500 + Math.random() * 1000);
+      await messageInput.scrollIntoViewIfNeeded();
+      await this.page.waitForTimeout(300 + Math.random() * 500);
+      await messageInput.click();
+      await this.page.waitForTimeout(500 + Math.random() * 500);
+
+      let typingSuccess = false;
+      
+      try {
+        const typingDelay = 60 + Math.random() * 100;
+        await this.page.keyboard.type(message, { delay: typingDelay });
+        typingSuccess = true;
+      } catch (keyboardError) {
+        try {
+          const typingDelay = 80 + Math.random() * 150;
+          await messageInput.type(message, { delay: typingDelay, timeout: 15000 });
+          typingSuccess = true;
+        } catch (typeError) {
+          try {
+            await messageInput.fill(message);
+            typingSuccess = true;
+          } catch (fillError) {
+            console.error('All typing methods failed');
+            throw new Error('Could not type message with any method');
+          }
+        }
+      }
+      
+      if (!typingSuccess) {
+        throw new Error('Could not type message with any method');
+      }
+      
+      await this.page.waitForTimeout(1000 + Math.random() * 1000);
+      await messageInput.press('Enter');
       await this.page.waitForTimeout(2000);
 
-      // Click message button
-      const messageButton = this.page.locator('text="Message"').first();
-      await messageButton.click();
-      await this.page.waitForTimeout(2000);
+      const inputValue = await messageInput.textContent();
+      if (inputValue && inputValue.trim().length > 0) {
+        const sendButton = this.page.locator('div[role="button"]:has-text("Send")');
+        if (await sendButton.isVisible({ timeout: 3000 }).catch(() => false)) {
+          await sendButton.click();
+          await this.page.waitForTimeout(2000);
+        }
+      }
 
-      // Type message
-      const messageInput = this.page.locator('textarea[placeholder*="Message"]').first();
-      await messageInput.fill(message);
-      await this.page.waitForTimeout(1000);
-
-      // Send message
-      const sendButton = this.page.locator('button:has-text("Send")').first();
-      await sendButton.click();
-      await this.page.waitForTimeout(2000);
-
-      console.log(`Message sent to ${profileUrl}`);
+      console.log(`✅ Message sent successfully to ${profileUrl}`);
+      
     } catch (error) {
-      console.error(`Failed to send message to ${profileUrl}:`, error);
-      throw error;
+      if (error.message && !error.message.includes('Could not find message input field')) {
+        console.error(`❌ Failed to send message to ${profileUrl}: ${error.message}`);
+        throw error;
+      } else {
+        console.log(`⚠️ Message button not available for ${profileUrl}, skipping.`);
+        throw new Error(`Message button not available for ${profileUrl}`);
+      }
     }
   }
 
