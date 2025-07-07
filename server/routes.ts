@@ -7,6 +7,7 @@ import { automationService } from "./services/automationService";
 import { googleSheetsService } from "./services/googleSheetsService";
 import { BrowserSetup } from "./utils/browserSetup";
 import { handleInstagramWebhook, verifyInstagramWebhook } from "./routes/webhooks";
+import { instagramOAuthService } from "./services/instagramOAuthService";
 import {
   insertSocialAccountSchema,
   insertGoogleSheetSchema,
@@ -111,6 +112,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error starting browser installation:", error);
       res.status(500).json({ message: "Failed to start browser installation" });
+    }
+  });
+
+  // Instagram OAuth for webhook subscription
+  app.get("/api/auth/instagram/:socialAccountId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { socialAccountId } = req.params;
+      const userId = req.user.claims.sub;
+      
+      if (!instagramOAuthService.isConfigured()) {
+        return res.status(400).json({ 
+          error: "Instagram OAuth not configured. Admin needs to add Meta App credentials." 
+        });
+      }
+
+      const authUrl = instagramOAuthService.getAuthUrl(userId, socialAccountId);
+      res.json({ authUrl });
+    } catch (error) {
+      console.error("Instagram OAuth error:", error);
+      res.status(500).json({ error: "Failed to generate Instagram OAuth URL" });
+    }
+  });
+
+  app.get("/api/auth/instagram/callback", async (req, res) => {
+    try {
+      const { code, state } = req.query;
+      
+      if (!code || !state) {
+        return res.status(400).json({ error: "Missing authorization code or state" });
+      }
+
+      // Decode state to get user and social account info
+      const [userId, socialAccountId] = (state as string).split(':');
+      
+      // Exchange code for tokens
+      const tokenData = await instagramOAuthService.exchangeCodeForTokens(code as string);
+      
+      // Get Instagram Business accounts
+      const instagramAccounts = await instagramOAuthService.getInstagramBusinessAccounts(tokenData.access_token);
+      
+      if (instagramAccounts.length === 0) {
+        return res.status(400).json({ 
+          error: "No Instagram Business accounts found. Make sure your Instagram account is set to Business." 
+        });
+      }
+
+      // Use the first Instagram Business account found
+      const instagramAccount = instagramAccounts[0];
+      
+      // Subscribe to webhooks
+      const webhookSubscribed = await instagramOAuthService.subscribeToWebhooks(
+        instagramAccount.page_access_token,
+        instagramAccount.page_id
+      );
+
+      // Update social account with Instagram Business details
+      await storage.updateSocialAccount(parseInt(socialAccountId), {
+        instagramBusinessId: instagramAccount.id,
+        pageAccessToken: instagramAccount.page_access_token,
+        webhookConnected: webhookSubscribed,
+      });
+
+      // Redirect back to frontend with success
+      res.redirect('/?instagram_connected=true');
+      
+    } catch (error) {
+      console.error("Instagram OAuth callback error:", error);
+      res.redirect('/?instagram_error=true');
     }
   });
 

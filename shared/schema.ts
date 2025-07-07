@@ -65,6 +65,10 @@ export const socialAccounts = pgTable("social_accounts", {
   twofa: text("twofa"), // 2FA secret if available
   isActive: boolean("is_active").default(true),
   lastUsed: timestamp("last_used"),
+  // Instagram Business API connection for webhook subscriptions
+  instagramBusinessId: varchar("instagram_business_id"), // Their Instagram Business account ID
+  pageAccessToken: text("page_access_token"), // Their page access token for webhooks
+  webhookConnected: boolean("webhook_connected").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

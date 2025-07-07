@@ -150,6 +150,53 @@ export default function Accounts() {
     addAccountMutation.mutate(data);
   };
 
+  const connectInstagramWebhook = async (accountId: number) => {
+    try {
+      const response = await fetch(`/api/auth/instagram/${accountId}`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        toast({
+          title: "Error",
+          description: errorData.error || "Failed to start Instagram connection",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { authUrl } = await response.json();
+      
+      // Open Instagram OAuth in popup
+      const popup = window.open(
+        authUrl,
+        'instagram-oauth',
+        'width=600,height=700,scrollbars=yes,resizable=yes'
+      );
+
+      // Listen for popup completion
+      const checkClosed = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(checkClosed);
+          // Refresh accounts data
+          queryClient.invalidateQueries({ queryKey: ["/api/social-accounts"] });
+          toast({
+            title: "Instagram Connected",
+            description: "Your Instagram account is now connected for webhook replies",
+          });
+        }
+      }, 1000);
+
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to connect Instagram webhook",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getPlatformIcon = (platform: string) => {
     switch (platform) {
       case 'instagram':
@@ -364,6 +411,27 @@ export default function Accounts() {
                     {account.lastUsed && (
                       <div className="text-xs text-slate-500">
                         Last used: {new Date(account.lastUsed).toLocaleDateString()}
+                      </div>
+                    )}
+
+                    {/* Webhook Connection for Instagram */}
+                    {account.platform === 'instagram' && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-600">Webhook Connected</span>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={account.webhookConnected ? "default" : "outline"}>
+                            {account.webhookConnected ? "Connected" : "Not Connected"}
+                          </Badge>
+                          {!account.webhookConnected && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => connectInstagramWebhook(account.id)}
+                            >
+                              Connect
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     )}
 
