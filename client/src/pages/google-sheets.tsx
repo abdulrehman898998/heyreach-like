@@ -335,6 +335,14 @@ export default function GoogleSheets() {
               <p className="text-gray-500 mb-4">
                 Connect your Google Sheets to use them as data sources for your campaigns.
               </p>
+              <div className="bg-blue-50 p-4 rounded-lg text-left">
+                <h4 className="font-medium text-blue-900 mb-2">Required Sheet Structure:</h4>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>• <strong>Column A:</strong> Instagram Profile URLs</li>
+                  <li>• <strong>Column B:</strong> Custom Messages</li>
+                  <li>• <strong>Example:</strong> A2: "https://instagram.com/user1", B2: "Hello!"</li>
+                </ul>
+              </div>
             </CardContent>
           </Card>
         ) : (

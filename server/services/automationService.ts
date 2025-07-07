@@ -98,6 +98,11 @@ class AutomationService {
     }
 
     try {
+      console.log(`Loading targets from Google Sheet: ${sheet.name} (ID: ${sheet.id})`);
+      console.log(`Sheet range: ${sheet.range}`);
+      console.log(`Has access token: ${!!sheet.accessToken}`);
+      console.log(`Has refresh token: ${!!sheet.refreshToken}`);
+      
       const data = await googleSheetsService.fetchSheetData(sheet);
       
       // Convert sheet data to campaign targets
@@ -109,6 +114,10 @@ class AutomationService {
         processed: false,
       })).filter(target => target.profileUrl && target.customMessage);
 
+      if (targets.length === 0) {
+        throw new Error(`No valid targets found in Google Sheet "${sheet.name}". Make sure Column A has Instagram URLs and Column B has messages.`);
+      }
+
       await storage.createCampaignTargets(targets);
       
       // Update campaign with total targets
@@ -116,10 +125,20 @@ class AutomationService {
         totalTargets: targets.length,
       });
 
-      console.log(`Loaded ${targets.length} targets for campaign ${campaign.id}`);
+      console.log(`Successfully loaded ${targets.length} targets for campaign ${campaign.id}`);
     } catch (error) {
       console.error("Error loading campaign targets:", error);
-      throw new Error("Failed to load targets from Google Sheets");
+      
+      // Provide more specific error messages
+      if (error.message.includes('access tokens not found')) {
+        throw new Error("Google Sheets authentication expired. Please reconnect your Google Sheet from the Google Sheets page.");
+      } else if (error.message.includes('authentication expired')) {
+        throw new Error("Google Sheets access expired. Please reconnect your Google Sheet.");
+      } else if (error.message.includes('No valid targets found')) {
+        throw error;
+      } else {
+        throw new Error(`Failed to load targets from Google Sheets: ${error.message}`);
+      }
     }
   }
 
