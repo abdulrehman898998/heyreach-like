@@ -95,12 +95,28 @@ class InstagramOAuthService {
             
             if (igDetailsResponse.ok) {
               const igDetails = await igDetailsResponse.json();
+              
+              // Get business ID associated with this page (needed for webhook recipient matching)
+              let businessId = null;
+              try {
+                const businessResponse = await fetch(
+                  `https://graph.facebook.com/v18.0/${page.id}?fields=business&access_token=${page.access_token}`
+                );
+                if (businessResponse.ok) {
+                  const businessData = await businessResponse.json();
+                  businessId = businessData.business?.id || null;
+                }
+              } catch (error) {
+                console.log(`Could not fetch business ID for page ${page.id}:`, error);
+              }
+              
               instagramAccounts.push({
-                id: igDetails.id,
+                id: igDetails.id, // Instagram Business Account ID (for webhooks)
                 username: igDetails.username,
                 profile_picture_url: igDetails.profile_picture_url,
                 page_id: page.id,
                 page_access_token: page.access_token,
+                business_id: businessId, // Business Manager ID (for recipient matching)
               });
             }
           }

@@ -68,6 +68,7 @@ export const socialAccounts = pgTable("social_accounts", {
   // Instagram Business API connection for webhook subscriptions
   instagramBusinessId: varchar("instagram_business_id"), // Their Instagram Business account ID
   pageAccessToken: text("page_access_token"), // Their page access token for webhooks
+  businessId: varchar("business_id"), // Business Manager ID for webhook recipient matching
   webhookConnected: boolean("webhook_connected").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });

@@ -171,6 +171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateSocialAccount(parseInt(socialAccountId), {
         instagramBusinessId: instagramAccount.id,
         pageAccessToken: instagramAccount.page_access_token,
+        businessId: instagramAccount.business_id, // Store Business Manager ID for webhook matching
         webhookConnected: webhookSubscribed,
       });
 
