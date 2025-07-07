@@ -301,10 +301,109 @@ export class InstagramBot {
           console.log('✅ Already logged into Instagram');
         }
         
-        // Now navigate to the target profile with simpler approach like local code
+        // Use human-like navigation that avoids Instagram's bot detection
         console.log(`Navigating to target profile: ${profileUrl}`);
+        
+        // Add human-like delay patterns
         await this.page.waitForTimeout(1000 + Math.random() * 2000);
-        await this.page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        
+        // Try JavaScript navigation first (less detectable)
+        try {
+          console.log('Attempting JavaScript navigation...');
+          await this.page.evaluate((url) => {
+            window.location.href = url;
+          }, profileUrl);
+          
+          // Wait for navigation to complete
+          await this.page.waitForTimeout(3000 + Math.random() * 2000);
+          
+          // Check if we're on the target profile
+          const currentUrl = this.page.url();
+          const username = profileUrl.split('/').pop() || '';
+          
+          if (currentUrl.includes(username)) {
+            console.log('✅ JavaScript navigation successful');
+          } else {
+            throw new Error('JavaScript navigation redirected elsewhere');
+          }
+          
+        } catch (jsError) {
+          console.log('JavaScript navigation failed, trying alternative...');
+          
+          // Fallback: gradual navigation approach
+          try {
+            // First go to Instagram home if not there already
+            const currentUrl = this.page.url();
+            if (!currentUrl.includes('instagram.com') || currentUrl.includes('chrome-error')) {
+              await this.page.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+              await this.page.waitForTimeout(2000 + Math.random() * 1000);
+            }
+            
+            // Extract username and try search-based navigation
+            const username = profileUrl.split('/').pop() || '';
+            console.log(`Searching for user: ${username}`);
+            
+            // Look for search functionality on current page
+            const searchElements = [
+              'input[placeholder*="Search"]',
+              'input[type="text"]',
+              'svg[aria-label*="Search"]',
+              'a[href*="explore"]'
+            ];
+            
+            let searchSuccess = false;
+            for (const selector of searchElements) {
+              try {
+                const element = this.page.locator(selector).first();
+                if (await element.isVisible({ timeout: 3000 })) {
+                  console.log(`Found search element: ${selector}`);
+                  
+                  if (selector.includes('input')) {
+                    await element.fill(username);
+                    await this.page.waitForTimeout(1000);
+                    
+                    // Look for user in results
+                    const userLink = this.page.locator(`a[href*="/${username}/"]`).first();
+                    if (await userLink.isVisible({ timeout: 5000 })) {
+                      await userLink.click();
+                      searchSuccess = true;
+                      break;
+                    }
+                  } else {
+                    // It's a search icon/link
+                    await element.click();
+                    await this.page.waitForTimeout(2000);
+                    
+                    // Try to find search input after clicking
+                    const searchInput = this.page.locator('input[placeholder*="Search"], input[type="text"]').first();
+                    if (await searchInput.isVisible({ timeout: 3000 })) {
+                      await searchInput.fill(username);
+                      await this.page.waitForTimeout(1000);
+                      
+                      const userLink = this.page.locator(`a[href*="/${username}/"]`).first();
+                      if (await userLink.isVisible({ timeout: 5000 })) {
+                        await userLink.click();
+                        searchSuccess = true;
+                        break;
+                      }
+                    }
+                  }
+                }
+              } catch (e) {
+                continue;
+              }
+            }
+            
+            if (!searchSuccess) {
+              throw new Error('Search-based navigation failed');
+            }
+            
+          } catch (altError) {
+            console.log('All navigation methods failed, this profile may be inaccessible');
+            throw new Error(`Navigation failed: ${altError.message}`);
+          }
+        }
+        
         await this.page.waitForTimeout(2000);
         
         // Check for and handle Instagram modal popup after navigation
@@ -350,29 +449,35 @@ export class InstagramBot {
       } catch (error) {
         console.error(`Attempt ${attempt} failed: ${error.message}`);
         
-        // Handle specific network errors - retry with different approach
-        if (error.message.includes('ERR_HTTP_RESPONSE_CODE_FAILURE') || 
+        // Handle browser session conflicts and network errors
+        if (error.message.includes('Opening in existing browser session') || 
+            error.message.includes('ERR_HTTP_RESPONSE_CODE_FAILURE') || 
             error.message.includes('net::ERR_NETWORK_CHANGED') ||
             error.message.includes('net::ERR_CONNECTION_RESET') ||
             error.message.includes('net::ERR_INTERNET_DISCONNECTED')) {
-          console.log('Network error detected - likely Instagram blocking. Trying alternative approach...');
+          console.log('Browser session conflict or network error detected. Closing and recreating session...');
           
-          // Try going to Instagram home first, then navigate to profile
+          // Close existing browser session and recreate
           try {
-            await this.page.goto('https://www.instagram.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
-            await this.page.waitForTimeout(2000);
+            if (this.page) {
+              await this.page.close();
+              this.page = null;
+            }
+            if (this.context) {
+              await this.context.close();
+              this.context = null;
+            }
             
-            // Now try the profile URL with a different approach
-            await this.page.evaluate((url) => {
-              window.location.href = url;
-            }, profileUrl);
-            await this.page.waitForTimeout(3000);
+            // Wait before recreating
+            await new Promise(resolve => setTimeout(resolve, 5000));
             
-            // If this works, continue without error
-            console.log('Alternative navigation method succeeded');
+            // Re-initialize with fresh session
+            await this.initialize();
+            continue; // Try again with fresh session
+            
           } catch (altError) {
-            console.log('Alternative method also failed, waiting before retry...');
-            await this.page.waitForTimeout(10000);
+            console.log('Session recreation failed, waiting before retry...');
+            await new Promise(resolve => setTimeout(resolve, 10000));
           }
         }
         
