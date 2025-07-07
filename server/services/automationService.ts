@@ -266,8 +266,11 @@ class AutomationService {
           twofa: account.twofa || undefined,
         }, proxyConfig);
 
+        console.log(`🤖 Processing: ${target.profileUrl}`);
         await bot.initialize();
+        console.log(`📱 Sending message to: ${target.profileUrl}`);
         await bot.sendDirectMessage(target.profileUrl, message.content);
+        console.log(`✅ Message sent to: ${target.profileUrl}`);
         await bot.close();
       }
       // TODO: Add Facebook automation

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Play, Pause, Eye, Edit, Copy, Download } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Plus, Play, Pause, Eye, Edit, Copy, Download, Terminal, ChevronUp, ChevronDown } from "lucide-react";
 import { SiInstagram, SiFacebook } from "react-icons/si";
 import NewCampaignModal from "@/components/modals/new-campaign-modal";
 
@@ -17,6 +18,47 @@ export default function Campaigns() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isNewCampaignModalOpen, setIsNewCampaignModalOpen] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
+  const logsEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll logs to bottom
+  useEffect(() => {
+    if (logsEndRef.current) {
+      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [logs]);
+
+  // WebSocket connection for real-time logs
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const addLog = (message: string) => {
+      const timestamp = new Date().toLocaleTimeString();
+      setLogs(prev => [...prev.slice(-50), `[${timestamp}] ${message}`]); // Keep last 50 logs
+    };
+
+    // Simple polling for logs from console
+    const interval = setInterval(async () => {
+      try {
+        // Extract logs from any running campaigns by checking their status
+        const response = await fetch('/api/campaigns');
+        const campaignsData = await response.json();
+        const runningCampaign = campaignsData.find((c: any) => c.status === 'running');
+        
+        if (runningCampaign) {
+          // Simple status update
+          addLog(`Campaign "${runningCampaign.name}" is processing Instagram profiles...`);
+        }
+      } catch (error) {
+        // Ignore polling errors
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [isAuthenticated]);
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -309,6 +351,23 @@ export default function Campaigns() {
           </div>
         )}
       </main>
+
+      {/* Processing Status */}
+      {campaigns && campaigns.some((c: any) => c.status === 'running') && (
+        <div className="border-t border-slate-200 bg-blue-50 px-6 py-3">
+          <div className="flex items-center space-x-3">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+            <span className="text-sm text-blue-700 font-medium">
+              Processing Instagram profiles...
+            </span>
+            {logs.length > 0 && (
+              <span className="text-xs text-blue-600">
+                {logs[logs.length - 1].replace(/^\[.*?\]\s*/, '')}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* New Campaign Modal */}
       <NewCampaignModal 
