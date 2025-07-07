@@ -1,61 +1,38 @@
 # Meta Developer Setup - Simple Guide
 
-## DO NOT PUBLISH YOUR APP ❌
+## You're Almost Done! 
 
-**Important**: For webhook reply tracking, your Meta app does NOT need to be published. You can use it in Development Mode.
+Your App ID and App Secret are now configured. Just need to add the webhook URL to your Meta Developer Console:
 
-## Step-by-Step Setup:
+### Quick Steps:
 
-### 1. Create/Access Your Meta App
-- Go to https://developers.facebook.com/apps/
-- Use your existing app or create a new one
-- **Keep it in Development Mode** (don't publish)
+1. **Go to**: https://developers.facebook.com/apps/2012776769248458/
 
-### 2. Add Required Products
-In your Meta app, go to **Products** and add:
-- ✅ **Instagram Basic Display**
-- ✅ **Webhooks** 
+2. **Add Webhooks Product**: 
+   - Click "Add Product" 
+   - Find "Webhooks" and click "Set Up"
 
-### 3. Configure Webhooks
-1. Go to **Products** → **Webhooks**
-2. Click **Add Subscription** 
-3. Choose **Instagram**
-4. Add this URL: `https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/api/webhooks/instagram`
-5. Add verify token: `socialbot_webhook_2024` (save this!)
-6. Subscribe to: `messages`, `message_reactions`
+3. **Configure Webhook**:
+   - Callback URL: `https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/api/webhooks/instagram`
+   - Verify Token: `instagram_webhook_verify_token`
+   - Subscribe to: `messages`, `message_reactions`
 
-### 4. Get Your Credentials
-From **Settings** → **Basic**:
-- Copy your **App ID**
-- Copy your **App Secret**
+4. **Instagram Basic Display**:
+   - Make sure this product is also added
+   - No extra configuration needed
 
-### 5. Instagram Business Account
-- Make sure your Instagram account is set to **Business** (not Personal)
-- Go to Instagram → Settings → Account → Switch to Professional Account
+### That's It!
 
-### 6. What We Need From You:
-```
-App ID: [Your App ID]
-App Secret: [Your App Secret]
-Instagram Business Account Username: [Your Instagram username]
-```
+Once you add the webhook URL, users can:
+- Add their Instagram accounts (username/password) 
+- Click "Connect" to enable webhook replies
+- Send campaigns and track customer replies automatically
 
-## Why App Doesn't Need to Be Published:
+### Current Status:
+- ✅ App ID configured: 2012776769248458
+- ✅ App Secret configured: 59fac28f3e5d3988caf08f357c0c9ac2
+- ✅ Instagram OAuth service ready
+- ✅ Webhook endpoints ready
+- 🔄 **Next**: Add webhook URL to Meta Console
 
-- **Development Mode**: Perfect for testing webhooks
-- **Your Own Account**: You can test with your own Instagram Business account
-- **No Review Required**: Development mode bypasses Meta's app review process
-- **Full Functionality**: Webhooks work the same in development mode
-
-## Next Steps:
-1. Share your App ID and App Secret with me
-2. I'll add them to the platform
-3. We'll test a message → reply → webhook flow
-4. If you want to use it for other people's accounts later, then you can consider publishing
-
-## Current Status:
-- ✅ Google Sheets: Working (you can now connect your account)
-- 🔄 Instagram Webhooks: Waiting for your Meta app credentials
-- ✅ All other features: Ready to use
-
-The platform is 95% ready - we just need your Meta App ID and App Secret to enable reply tracking!
+Your app can stay in Development Mode - works perfectly for testing webhooks!
