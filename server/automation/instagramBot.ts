@@ -26,7 +26,7 @@ export class InstagramBot {
   async initialize(): Promise<void> {
     try {
       const launchOptions: any = {
-        headless: true,
+        headless: false, // Show browser window for debugging
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
