@@ -59,10 +59,12 @@ export default function GoogleSheets() {
 
   const connectMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("/api/auth/google");
+      const response = await apiRequest("/api/auth/google", {
+        method: "GET",
+      });
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to connect to Google');
+        throw new Error(errorData.error || errorData.message || 'Failed to connect to Google');
       }
       return response.json();
     },

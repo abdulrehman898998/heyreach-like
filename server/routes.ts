@@ -168,11 +168,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Google OAuth routes
   app.get("/api/auth/google", isAuthenticated, async (req: any, res) => {
     try {
+      console.log('Google auth request from user:', req.user.claims.sub);
       const authUrl = googleSheetsService.getAuthUrl(req.user.claims.sub);
+      console.log('Generated auth URL:', authUrl);
       res.json({ authUrl });
     } catch (error) {
       console.error("Error generating Google auth URL:", error);
-      res.status(500).json({ error: "Failed to generate auth URL" });
+      res.status(500).json({ error: "Failed to generate auth URL", details: error.message });
     }
   });
 
