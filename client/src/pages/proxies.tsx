@@ -17,9 +17,7 @@ import { Switch } from "@/components/ui/switch";
 type AddProxyForm = z.infer<typeof addProxySchema>;
 
 const addProxySchema = z.object({
-  url: z.string().min(1, "Proxy URL is required").regex(/^[\w.-]+:\d+$/, "Format: host:port (e.g., 192.168.1.100:8080)"),
-  username: z.string().optional(),
-  password: z.string().optional(),
+  proxyUrl: z.string().min(1, "Proxy URL is required"),
 });
 
 export default function Proxies() {
@@ -33,16 +31,34 @@ export default function Proxies() {
 
   const addMutation = useMutation({
     mutationFn: async (data: AddProxyForm) => {
-      // Parse URL to extract host and port
-      const [host, portStr] = data.url.split(':');
-      const port = parseInt(portStr);
+      // Parse proxy URL to extract components
+      let host, port, username, password;
+      
+      try {
+        const url = new URL(data.proxyUrl);
+        host = url.hostname;
+        port = parseInt(url.port);
+        username = url.username || null;
+        password = url.password || null;
+      } catch (error) {
+        // Fallback for simple host:port format
+        const parts = data.proxyUrl.split(':');
+        if (parts.length === 2) {
+          host = parts[0];
+          port = parseInt(parts[1]);
+          username = null;
+          password = null;
+        } else {
+          throw new Error('Invalid proxy URL format');
+        }
+      }
       
       const proxyData = {
         name: `${host}:${port}`,
         host,
         port,
-        username: data.username || null,
-        password: data.password || null,
+        username,
+        password,
         isActive: true,
       };
 
@@ -120,9 +136,7 @@ export default function Proxies() {
   const form = useForm<AddProxyForm>({
     resolver: zodResolver(addProxySchema),
     defaultValues: {
-      url: "",
-      username: "",
-      password: "",
+      proxyUrl: "",
     },
   });
 
@@ -172,47 +186,23 @@ export default function Proxies() {
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
                   control={form.control}
-                  name="url"
+                  name="proxyUrl"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Proxy URL</FormLabel>
                       <FormControl>
-                        <Input placeholder="192.168.1.100:8080" {...field} />
+                        <Input 
+                          placeholder="http://username:password@host:port or host:port" 
+                          {...field} 
+                        />
                       </FormControl>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Examples: http://user:pass@proxy.com:8080 or 192.168.1.100:3128
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="username"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Username (optional)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="username" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Password (optional)</FormLabel>
-                        <FormControl>
-                          <Input type="password" placeholder="password" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
 
                 <div className="flex justify-end space-x-2">
                   <Button 
