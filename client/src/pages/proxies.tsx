@@ -14,11 +14,11 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, Edit, Trash2, Server, Wifi, WifiOff } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
-type AddProxyForm = z.infer<typeof addProxySchema>;
-
 const addProxySchema = z.object({
   proxyUrl: z.string().min(1, "Proxy URL is required"),
 });
+
+type AddProxyForm = z.infer<typeof addProxySchema>;
 
 export default function Proxies() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
