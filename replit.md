@@ -130,6 +130,7 @@ Changelog:
 - July 07, 2025. Added complete account editing functionality - users can now edit Instagram/Facebook account credentials through web interface with edit modal and PUT API endpoint
 - July 07, 2025. Fixed Instagram automation timeout issues by implementing sophisticated message button detection with multiple fallback selectors, retry logic, and robust navigation handling from proven local automation code
 - July 07, 2025. Implemented complete Facebook automation bot using proven local code patterns - both Instagram and Facebook campaigns now use identical robust automation approaches with popup handling, persistent sessions, and multi-fallback selectors
+- July 07, 2025. Fixed URL formatting issues causing ERR_HTTP_RESPONSE_CODE_FAILURE - removed double slashes from Google Sheets URLs and added proactive popup handlers from user's working local automation code
 
 ## User Preferences
 
@@ -137,3 +138,4 @@ Preferred communication style: Simple, everyday language.
 Project preferences: Skip reply tracking features as they are too complex. Focus on core automation features for Instagram/Facebook messaging.
 Feature requests: Rotating proxy support for users to add proxy servers with username/password authentication.
 Domain preference: Always use stable URL https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/ - never change domain configuration.
+Technical preference: User has working local automation code that successfully handles Instagram login and messaging. Current web platform code has login issues and should be updated to match the working local patterns exactly.

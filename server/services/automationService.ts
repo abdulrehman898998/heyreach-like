@@ -185,7 +185,26 @@ class AutomationService {
       const account = shuffledAccounts[currentAccountIndex];
       
       try {
-        await this.sendMessage(campaign, account, target, userId);
+        // Fix URL formatting issues - remove double slashes and ensure proper format
+        let cleanUrl = target.profileUrl.trim();
+        if (cleanUrl.includes('instagram.com//')) {
+          cleanUrl = cleanUrl.replace('instagram.com//', 'instagram.com/');
+          console.log(`🔧 Fixed double slash URL: ${cleanUrl}`);
+        }
+        if (!cleanUrl.startsWith('https://')) {
+          if (cleanUrl.startsWith('www.instagram.com/') || cleanUrl.startsWith('instagram.com/')) {
+            cleanUrl = 'https://' + cleanUrl;
+          } else if (cleanUrl.startsWith('@')) {
+            cleanUrl = 'https://www.instagram.com/' + cleanUrl.substring(1);
+          } else if (!cleanUrl.includes('instagram.com')) {
+            cleanUrl = 'https://www.instagram.com/' + cleanUrl;
+          }
+        }
+        
+        // Update the target with clean URL for this processing
+        const cleanTarget = { ...target, profileUrl: cleanUrl };
+        
+        await this.sendMessage(campaign, account, cleanTarget, userId);
         messagesPerAccountCount++;
 
         // Update progress
