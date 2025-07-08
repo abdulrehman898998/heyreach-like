@@ -144,3 +144,4 @@ Project preferences: Skip reply tracking features as they are too complex. Focus
 Feature requests: Rotating proxy support for users to add proxy servers with username/password authentication.
 Domain preference: Use current working Replit domain https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/ - this is the active project domain.
 Technical preference: User has working local automation code that successfully handles Instagram login and messaging. Current web platform code has login issues and should be updated to match the working local patterns exactly.
+Database preference: User wants to run code locally while keeping existing Replit PostgreSQL database - no Supabase migration needed for now.
