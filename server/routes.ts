@@ -340,8 +340,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const tokens = await googleSheetsService.exchangeCodeForTokens(code as string);
       
-      // Redirect to frontend with tokens
-      const frontendUrl = 'https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/google-sheets';
+      // Redirect to frontend with tokens  
+      const frontendUrl = process.env.NODE_ENV === 'development'
+        ? 'http://localhost:3000/google-sheets'
+        : 'https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/google-sheets';
       res.redirect(`${frontendUrl}?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}`);
     } catch (error) {
       console.error("Error handling Google OAuth callback:", error);
