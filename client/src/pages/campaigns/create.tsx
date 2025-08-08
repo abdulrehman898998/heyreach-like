@@ -33,7 +33,9 @@ export default function CreateCampaign() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccounts, setSelectedAccounts] = useState<number[]>([]);
   const [showColumnSelect, setShowColumnSelect] = useState(false);
+  const [showProfileUrlColumnSelect, setShowProfileUrlColumnSelect] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
+  const [profileUrlCursorPosition, setProfileUrlCursorPosition] = useState(0);
   const [previewData, setPreviewData] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -50,6 +52,7 @@ export default function CreateCampaign() {
       });
       const data = await response.json();
       if (data.success) {
+        console.log("Fetched columns:", data.columns);
         const columnsList = data.columns.map((col: string) => ({
           value: col,
           label: col
@@ -97,11 +100,64 @@ export default function CreateCampaign() {
     }
   };
 
+  const handleProfileUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    const position = e.target.selectionStart || 0;
+    
+    setProfileUrl(value);
+    setProfileUrlCursorPosition(position);
+
+    if (value.charAt(position - 1) === '/') {
+      setShowProfileUrlColumnSelect(true);
+    } else {
+      setShowProfileUrlColumnSelect(false);
+    }
+  };
+
   const insertColumn = (columnName: string) => {
-    const before = message.slice(0, cursorPosition - 1);
-    const after = message.slice(cursorPosition);
-    setMessage(before + `{{${columnName}}}` + after);
+    console.log("Inserting column:", columnName, "at position:", cursorPosition);
+    console.log("Current message:", message);
+    
+    // Find the last '/' character before the cursor and replace it with the column
+    const beforeSlash = message.slice(0, cursorPosition).lastIndexOf('/');
+    if (beforeSlash !== -1) {
+      const before = message.slice(0, beforeSlash);
+      const after = message.slice(cursorPosition);
+      const newMessage = before + `{{${columnName}}}` + after;
+      console.log("New message:", newMessage);
+      setMessage(newMessage);
+    } else {
+      // Fallback: just insert at cursor position
+      const before = message.slice(0, cursorPosition);
+      const after = message.slice(cursorPosition);
+      const newMessage = before + `{{${columnName}}}` + after;
+      console.log("New message (fallback):", newMessage);
+      setMessage(newMessage);
+    }
     setShowColumnSelect(false);
+  };
+
+  const insertProfileUrlColumn = (columnName: string) => {
+    console.log("Inserting column into profile URL:", columnName, "at position:", profileUrlCursorPosition);
+    console.log("Current profile URL:", profileUrl);
+    
+    // Find the last '/' character before the cursor and replace it with the column
+    const beforeSlash = profileUrl.slice(0, profileUrlCursorPosition).lastIndexOf('/');
+    if (beforeSlash !== -1) {
+      const before = profileUrl.slice(0, beforeSlash);
+      const after = profileUrl.slice(profileUrlCursorPosition);
+      const newProfileUrl = before + `{{${columnName}}}` + after;
+      console.log("New profile URL:", newProfileUrl);
+      setProfileUrl(newProfileUrl);
+    } else {
+      // Fallback: just insert at cursor position
+      const before = profileUrl.slice(0, profileUrlCursorPosition);
+      const after = profileUrl.slice(profileUrlCursorPosition);
+      const newProfileUrl = before + `{{${columnName}}}` + after;
+      console.log("New profile URL (fallback):", newProfileUrl);
+      setProfileUrl(newProfileUrl);
+    }
+    setShowProfileUrlColumnSelect(false);
   };
 
   const handleAccountToggle = (accountId: number) => {
@@ -194,6 +250,18 @@ export default function CreateCampaign() {
     return preview;
   };
 
+  const getProfileUrlPreview = () => {
+    let preview = profileUrl;
+    const variables = profileUrl.match(/\{\{([^}]+)\}\}/g) || [];
+    
+    variables.forEach((variable) => {
+      const columnName = variable.slice(2, -2);
+      preview = preview.replace(variable, previewData[columnName] || `[${columnName}]`);
+    });
+    
+    return preview;
+  };
+
   return (
     <div className="container mx-auto py-8">
       <Card className="max-w-2xl mx-auto">
@@ -203,12 +271,38 @@ export default function CreateCampaign() {
         <CardContent className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="profileUrl">Profile URL</Label>
-            <Input
-              id="profileUrl"
-              placeholder="Enter Instagram profile URL"
-              value={profileUrl}
-              onChange={(e) => setProfileUrl(e.target.value)}
-            />
+            <div className="relative">
+              <Input
+                id="profileUrl"
+                placeholder="Enter Instagram profile URL or use / to insert column variables"
+                value={profileUrl}
+                onChange={handleProfileUrlChange}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setShowProfileUrlColumnSelect(false);
+                  }
+                }}
+              />
+              
+              {showProfileUrlColumnSelect && (
+                <div className="absolute top-full left-0 w-full bg-white border rounded-md shadow-lg z-10">
+                  <Command>
+                    <CommandInput placeholder="Search columns..." />
+                    <CommandEmpty>No columns found.</CommandEmpty>
+                    <CommandGroup>
+                      {columns.map((column) => (
+                        <CommandItem
+                          key={column.value}
+                          onSelect={() => insertProfileUrlColumn(column.value)}
+                        >
+                          {column.label}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </Command>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -248,9 +342,18 @@ export default function CreateCampaign() {
             </div>
           </div>
 
+          {profileUrl && (
+            <div className="space-y-2">
+              <Label>Profile URL Preview</Label>
+              <div className="rounded-md border p-4 bg-slate-50">
+                <p className="text-sm">{getProfileUrlPreview()}</p>
+              </div>
+            </div>
+          )}
+
           {message && (
             <div className="space-y-2">
-              <Label>Preview</Label>
+              <Label>Message Preview</Label>
               <div className="rounded-md border p-4 bg-slate-50">
                 <p className="text-sm whitespace-pre-wrap">{getMessagePreview()}</p>
               </div>

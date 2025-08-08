@@ -16,14 +16,11 @@ interface LeadFile {
 }
 
 interface ColumnMapping {
-  profileUrl: string;
-  name?: string;
-  customFields: Record<string, string>;
+  selectedColumns: string[];
 }
 
 interface CSVPreview {
   availableColumns: string[];
-  suggestedMapping: ColumnMapping;
   preview: Record<string, string>[];
   totalRows: number;
 }
@@ -74,13 +71,12 @@ export default function LeadsPage() {
       if (response.ok && data.success) {
         if (data.preview) {
           // Show column mapping interface
-          setCsvPreview({
-            availableColumns: data.availableColumns || [],
-            suggestedMapping: data.suggestedMapping || { profileUrl: '', customFields: {} },
-            preview: Array.isArray(data.preview) ? data.preview : [],
-            totalRows: data.totalRows || 0,
-          });
-          setColumnMapping(data.suggestedMapping);
+                     setCsvPreview({
+             availableColumns: data.availableColumns || [],
+             preview: Array.isArray(data.preview) ? data.preview : [],
+             totalRows: data.totalRows || 0,
+           });
+           setColumnMapping({ selectedColumns: data.availableColumns || [] });
           setShowColumnMapping(true);
         } else {
           // Direct upload successful
@@ -122,29 +118,16 @@ export default function LeadsPage() {
     }
   };
 
-  const handleColumnMappingChange = (field: string, columnName: string) => {
+  const handleColumnToggle = (columnName: string) => {
     if (!columnMapping) return;
 
-    if (field === 'profileUrl') {
-      setColumnMapping({
-        ...columnMapping,
-        profileUrl: columnName,
-      });
-    } else if (field === 'name') {
-      setColumnMapping({
-        ...columnMapping,
-        name: columnName,
-      });
-    } else {
-      // Custom field
-      setColumnMapping({
-        ...columnMapping,
-        customFields: {
-          ...columnMapping.customFields,
-          [field]: columnName,
-        },
-      });
-    }
+    const isSelected = columnMapping.selectedColumns.includes(columnName);
+    setColumnMapping({
+      ...columnMapping,
+      selectedColumns: isSelected 
+        ? columnMapping.selectedColumns.filter(col => col !== columnName)
+        : [...columnMapping.selectedColumns, columnName]
+    });
   };
 
   const handleFinalUpload = async () => {
@@ -153,7 +136,9 @@ export default function LeadsPage() {
     setIsUploading(true);
     const formData = new FormData();
     formData.append('file', selectedFile);
-    formData.append('columnMapping', JSON.stringify(columnMapping));
+    formData.append('columnMapping', JSON.stringify({
+      selectedColumns: columnMapping.selectedColumns
+    }));
 
     try {
       const response = await fetch('/api/leads/upload', {
@@ -280,111 +265,56 @@ export default function LeadsPage() {
                       <p className="text-sm text-slate-600">{csvPreview.totalRows} rows detected</p>
                     </div>
 
-                    {/* Profile URL Mapping */}
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        Profile URL (Required)
-                      </Label>
-                      <Select
-                        value={columnMapping.profileUrl}
-                        onValueChange={(value) => handleColumnMappingChange('profileUrl', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select column for profile URL" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {csvPreview.availableColumns.map((column) => (
-                            <SelectItem key={column} value={column}>
-                              {column}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                                         {/* Column Selection */}
+                     <div className="space-y-2">
+                       <Label className="flex items-center gap-2">
+                         <CheckCircle className="h-4 w-4 text-green-600" />
+                         Select Columns to Import
+                       </Label>
+                       <div className="space-y-2 max-h-60 overflow-y-auto border rounded-md p-3">
+                         {csvPreview.availableColumns.map((column) => (
+                           <div key={column} className="flex items-center space-x-2">
+                             <input
+                               type="checkbox"
+                               id={`column-${column}`}
+                               checked={columnMapping.selectedColumns.includes(column)}
+                               onChange={() => handleColumnToggle(column)}
+                               className="rounded border-gray-300"
+                             />
+                             <label htmlFor={`column-${column}`} className="text-sm font-medium">
+                               {column}
+                             </label>
+                           </div>
+                         ))}
+                       </div>
+                     </div>
 
-                    {/* Name Mapping */}
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <span className="h-4 w-4 text-blue-600">👤</span>
-                        Name (Optional)
-                      </Label>
-                      <Select
-                        value={columnMapping.name || ''}
-                        onValueChange={(value) => handleColumnMappingChange('name', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select column for name (optional)" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">None</SelectItem>
-                          {csvPreview.availableColumns.map((column) => (
-                            <SelectItem key={column} value={column}>
-                              {column}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Custom Fields */}
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <span className="h-4 w-4 text-purple-600">📝</span>
-                        Custom Fields (Optional)
-                      </Label>
-                      <div className="space-y-2">
-                        {csvPreview.availableColumns
-                          .filter(col => col !== columnMapping.profileUrl && col !== columnMapping.name)
-                          .map((column) => (
-                            <div key={column} className="flex items-center gap-2">
-                              <Select
-                                value={columnMapping.customFields[column] || ''}
-                                onValueChange={(value) => handleColumnMappingChange(column, value)}
-                              >
-                                <SelectTrigger className="flex-1">
-                                  <SelectValue placeholder={`Map ${column} to...`} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="">Skip this column</SelectItem>
-                                  <SelectItem value={column}>{column} (as custom field)</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-
-                    {/* Preview */}
-                    {csvPreview.preview.length > 0 && (
-                      <div className="mt-4">
-                        <p className="text-sm font-medium mb-2">Preview with current mapping</p>
-                        <div className="overflow-x-auto border rounded-md">
-                          <table className="min-w-full text-sm">
-                            <thead className="bg-slate-50">
-                              <tr>
-                                <th className="text-left py-2 px-3 font-medium text-slate-600">Profile URL</th>
-                                {columnMapping.name && <th className="text-left py-2 px-3 font-medium text-slate-600">Name</th>}
-                                {Object.entries(columnMapping.customFields).map(([field, col]) => (
-                                  <th key={field} className="text-left py-2 px-3 font-medium text-slate-600">{field}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {csvPreview.preview.map((row, idx) => (
-                                <tr key={idx} className="border-t">
-                                  <td className="py-2 px-3 text-slate-700">{row.profileUrl}</td>
-                                  {columnMapping.name && <td className="py-2 px-3 text-slate-700">{row.name}</td>}
-                                  {Object.entries(columnMapping.customFields).map(([field, col]) => (
-                                    <td key={field} className="py-2 px-3 text-slate-700">{row[field]}</td>
-                                  ))}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
+                                         {/* Preview */}
+                     {csvPreview.preview.length > 0 && (
+                       <div className="mt-4">
+                         <p className="text-sm font-medium mb-2">Preview of selected columns</p>
+                         <div className="overflow-x-auto border rounded-md">
+                           <table className="min-w-full text-sm">
+                             <thead className="bg-slate-50">
+                               <tr>
+                                 {columnMapping.selectedColumns.map((column) => (
+                                   <th key={column} className="text-left py-2 px-3 font-medium text-slate-600">{column}</th>
+                                 ))}
+                               </tr>
+                             </thead>
+                             <tbody>
+                               {csvPreview.preview.map((row, idx) => (
+                                 <tr key={idx} className="border-t">
+                                   {columnMapping.selectedColumns.map((column) => (
+                                     <td key={column} className="py-2 px-3 text-slate-700">{row[column] || ''}</td>
+                                   ))}
+                                 </tr>
+                               ))}
+                             </tbody>
+                           </table>
+                         </div>
+                       </div>
+                     )}
 
                     {/* Action Buttons */}
                     <div className="flex gap-2 pt-4">
@@ -395,11 +325,11 @@ export default function LeadsPage() {
                       >
                         Cancel
                       </Button>
-                      <Button
-                        onClick={handleFinalUpload}
-                        disabled={isUploading || !columnMapping.profileUrl}
-                        className="flex-1"
-                      >
+                                             <Button
+                         onClick={handleFinalUpload}
+                         disabled={isUploading || columnMapping.selectedColumns.length === 0}
+                         className="flex-1"
+                       >
                         {isUploading ? (
                           <>
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>

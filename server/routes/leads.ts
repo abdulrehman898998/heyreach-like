@@ -144,14 +144,13 @@ async function handleUpload(req: any, res: any) {
       console.log("No column mapping provided, returning preview only");
       const preview = await leadService.previewCSV(csvContent);
       if (preview.success) {
-        return res.json({
-          success: true,
-          preview: true,
-          availableColumns: preview.availableColumns,
-          suggestedMapping: preview.suggestedMapping,
-          preview: preview.preview,
-          totalRows: preview.totalRows,
-        });
+              return res.json({
+        success: true,
+        preview: true,
+        availableColumns: preview.availableColumns,
+        preview: preview.preview,
+        totalRows: preview.totalRows,
+      });
       } else {
         return res.status(400).json({
           success: false,

@@ -11,50 +11,19 @@ export interface CSVUploadResult {
 }
 
 export interface ColumnMappingRequest {
-  profileUrl: string;
-  name?: string;
-  customFields: Record<string, string>;
+  selectedColumns: string[];
 }
 
 export interface CSVPreviewResult {
   success: boolean;
   availableColumns: string[];
-  suggestedMapping: ColumnMappingRequest;
   preview: Record<string, string>[];
   totalRows: number;
 }
 
 function inferColumnMapping(headers: string[]): ColumnMappingRequest {
-  const normalized = headers.map((h) => h.trim().toLowerCase());
-  const candidates = [
-    "profile_url",
-    "instagram_url",
-    "profile",
-    "url",
-    "instagram",
-    "username",
-    "handle",
-  ];
-  let profileUrlHeader = headers[0];
-  for (const c of candidates) {
-    const idx = normalized.indexOf(c);
-    if (idx !== -1) {
-      profileUrlHeader = headers[idx];
-      break;
-    }
-  }
-  const nameIdx = normalized.indexOf("name");
-  const nameHeader = nameIdx !== -1 ? headers[nameIdx] : undefined;
-  const customFields: Record<string, string> = {};
-  headers.forEach((h) => {
-    if (h === profileUrlHeader) return;
-    if (nameHeader && h === nameHeader) return;
-    customFields[h] = h;
-  });
   return {
-    profileUrl: profileUrlHeader,
-    name: nameHeader,
-    customFields,
+    selectedColumns: headers,
   };
 }
 
@@ -76,62 +45,49 @@ export class LeadService {
         trim: true,
       });
 
-      if (records.length === 0) {
-        return {
-          success: false,
-          availableColumns: [],
-          suggestedMapping: { profileUrl: "", customFields: {} },
-          preview: [],
-          totalRows: 0,
-        };
-      }
+             if (records.length === 0) {
+         return {
+           success: false,
+           availableColumns: [],
+           preview: [],
+           totalRows: 0,
+         };
+       }
 
       // Get available columns
       const firstRow = records[0];
       const availableColumns = Object.keys(firstRow as Record<string, any>);
 
-      // Generate suggested mapping
-      const suggestedMapping = inferColumnMapping(availableColumns);
+             // Create preview (first 5 rows)
+       const preview: Record<string, string>[] = [];
+       for (let i = 0; i < Math.min(5, records.length); i++) {
+         const row = records[i];
+         const previewRow: Record<string, string> = {};
 
-      // Create preview (first 5 rows)
-      const preview: Record<string, string>[] = [];
-      for (let i = 0; i < Math.min(5, records.length); i++) {
-        const row = records[i];
-        const previewRow: Record<string, string> = {};
+         // Add all columns to preview
+         availableColumns.forEach(column => {
+           const value = (row as Record<string, any>)[column];
+           previewRow[column] = value || "";
+         });
 
-        // Add profile URL
-        previewRow.profileUrl = (row as Record<string, any>)[suggestedMapping.profileUrl] || "";
-
-        // Add name if mapped
-        if (suggestedMapping.name) {
-          previewRow.name = (row as Record<string, any>)[suggestedMapping.name] || "";
-        }
-
-        // Add custom fields
-        for (const [fieldName, columnName] of Object.entries(suggestedMapping.customFields)) {
-          previewRow[fieldName] = (row as Record<string, any>)[columnName] || "";
-        }
-
-        preview.push(previewRow);
-      }
+         preview.push(previewRow);
+       }
 
       return {
         success: true,
         availableColumns,
-        suggestedMapping,
         preview,
         totalRows: records.length,
       };
-    } catch (error) {
-      console.error("Error previewing CSV:", error);
-      return {
-        success: false,
-        availableColumns: [],
-        suggestedMapping: { profileUrl: "", customFields: {} },
-        preview: [],
-        totalRows: 0,
-      };
-    }
+         } catch (error) {
+       console.error("Error previewing CSV:", error);
+       return {
+         success: false,
+         availableColumns: [],
+         preview: [],
+         totalRows: 0,
+       };
+     }
   }
 
   /**
@@ -174,50 +130,39 @@ export class LeadService {
         ? columnMapping
         : inferColumnMapping(availableColumns);
 
-      if (!availableColumns.includes(effectiveMapping.profileUrl)) {
-        errors.push(`Profile URL column "${effectiveMapping.profileUrl}" not found in CSV`);
-      }
-
-      if (effectiveMapping.name && !availableColumns.includes(effectiveMapping.name)) {
-        errors.push(`Name column "${effectiveMapping.name}" not found in CSV`);
-      }
-
-      // Validate custom field mappings
-      for (const [, columnName] of Object.entries(effectiveMapping.customFields)) {
-        if (!availableColumns.includes(columnName)) {
-          errors.push(`Custom field column "${columnName}" not found in CSV`);
+      // Validate selected columns exist in CSV
+      for (const column of effectiveMapping.selectedColumns) {
+        if (!availableColumns.includes(column)) {
+          errors.push(`Column "${column}" not found in CSV`);
         }
       }
 
-      // Create preview (first 5 rows)
-      for (let i = 0; i < Math.min(5, records.length); i++) {
-        const row = records[i];
-        const previewRow: Record<string, string> = {};
+             // Create preview (first 5 rows)
+       for (let i = 0; i < Math.min(5, records.length); i++) {
+         const row = records[i];
+         const previewRow: Record<string, string> = {};
 
-        // Add profile URL
-        previewRow.profileUrl = (row as Record<string, any>)[effectiveMapping.profileUrl] || "";
+         // Add selected columns to preview
+         effectiveMapping.selectedColumns.forEach(column => {
+           const value = (row as Record<string, any>)[column];
+           previewRow[column] = value || "";
+         });
 
-        // Add name if mapped
-        if (effectiveMapping.name) {
-          previewRow.name = (row as Record<string, any>)[effectiveMapping.name] || "";
-        }
+         preview.push(previewRow);
+       }
 
-        // Add custom fields
-        for (const [fieldName, columnName] of Object.entries(effectiveMapping.customFields)) {
-                      previewRow[fieldName] = (row as Record<string, any>)[columnName] || "";
-        }
-
-        preview.push(previewRow);
-      }
-
-      // Validate profile URLs
-      const invalidUrls: string[] = [];
-      for (const record of records) {
-        const profileUrl = (record as Record<string, any>)[effectiveMapping.profileUrl];
-        if (!this.isValidInstagramProfileUrl(profileUrl)) {
-          invalidUrls.push(profileUrl);
-        }
-      }
+             // Validate profile URLs (only check columns that contain Instagram URLs)
+       const invalidUrls: string[] = [];
+       for (const record of records) {
+         for (const column of effectiveMapping.selectedColumns) {
+           const value = (record as Record<string, any>)[column];
+           if (value && value.includes('instagram.com')) {
+             if (!this.isValidInstagramProfileUrl(value)) {
+               invalidUrls.push(value);
+             }
+           }
+         }
+       }
 
       if (invalidUrls.length > 0) {
         errors.push(`${invalidUrls.length} invalid Instagram profile URLs found`);
@@ -233,26 +178,38 @@ export class LeadService {
         };
       }
 
-      // Create lead file record
-      const leadFileData: NewLeadFile = {
-        userId,
-        filename,
-        totalRows: records.length,
-        columnMapping: effectiveMapping as ColumnMapping,
-      };
+             // Create lead file record
+       const leadFileData: NewLeadFile = {
+         userId,
+         filename,
+         totalRows: records.length,
+         columnMapping: effectiveMapping as unknown as ColumnMapping,
+       };
 
       const leadFile = await storage.createLeadFile(leadFileData);
 
       // Process and store leads
       const leadsData: NewLead[] = (records as Record<string, any>[]).map((record: Record<string, any>) => {
         const customFields: Record<string, string> = {};
-        for (const [fieldName, columnName] of Object.entries(effectiveMapping.customFields)) {
-          customFields[fieldName] = record[columnName] || "";
+        let profileUrl = "";
+        let name = null;
+
+        // Find profile URL and name from selected columns
+        for (const column of effectiveMapping.selectedColumns) {
+          const value = record[column] || "";
+          if (value.includes('instagram.com')) {
+            profileUrl = value;
+          } else if (column.toLowerCase().includes('name')) {
+            name = value;
+          } else {
+            customFields[column] = value;
+          }
         }
+
         return {
           fileId: leadFile.id,
-          profileUrl: record[effectiveMapping.profileUrl],
-          name: effectiveMapping.name ? record[effectiveMapping.name] : null,
+          profileUrl,
+          name,
           customFields,
         };
       });
@@ -283,9 +240,9 @@ export class LeadService {
   private isValidInstagramProfileUrl(url: string): boolean {
     if (!url) return false;
 
-    // Basic Instagram URL validation
-    const instagramUrlPattern = /^https?:\/\/(www\.)?instagram\.com\/[a-zA-Z0-9._]+\/?$/;
-    return instagramUrlPattern.test(url);
+    // Very flexible Instagram URL validation
+    const instagramUrlPattern = /^https?:\/\/(www\.)?instagram\.com\/[a-zA-Z0-9._\/\-]+\/?$/;
+    return instagramUrlPattern.test(url.trim());
   }
 
   /**

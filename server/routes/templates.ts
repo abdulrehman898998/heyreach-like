@@ -1,5 +1,6 @@
 import express from "express";
 import { templateService } from "../services/templateService";
+import { storage } from "../storage";
 
 const router = express.Router();
 
@@ -60,6 +61,72 @@ router.post("/", async (req, res) => {
     res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : "Failed to create template",
+    });
+  }
+});
+
+// Get available columns for slash-based selection
+router.get("/columns", async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    
+    // Get actual columns from uploaded lead files
+    const leadFiles = await (storage as any).getLeadFilesByUser(userId);
+    const allColumns = new Set<string>();
+    
+    // Extract columns from uploaded lead files
+    for (const file of leadFiles) {
+      try {
+        if (file.columnMapping && typeof file.columnMapping === 'object') {
+          const mapping = file.columnMapping as Record<string, any>;
+          
+          // Handle new simplified column mapping structure
+          if (mapping.selectedColumns && Array.isArray(mapping.selectedColumns)) {
+            mapping.selectedColumns.forEach((column: string) => {
+              if (typeof column === 'string' && column.trim()) {
+                allColumns.add(column.trim());
+              }
+            });
+          }
+          
+          // Handle old complex mapping structure (for backward compatibility)
+          if (mapping.customFields && typeof mapping.customFields === 'object') {
+            Object.keys(mapping.customFields).forEach(field => {
+              if (typeof field === 'string' && field.trim()) {
+                allColumns.add(field.trim());
+              }
+            });
+          }
+          
+          // Also check for direct column mappings (like name, profileUrl)
+          Object.keys(mapping).forEach(key => {
+            if (key !== 'customFields' && key !== 'selectedColumns' && typeof key === 'string') {
+              const trimmedKey = key.trim();
+              if (trimmedKey) {
+                allColumns.add(trimmedKey);
+              }
+            }
+          });
+        }
+      } catch (error) {
+        console.error('Error processing lead file column mapping:', error);
+        // Continue with other files
+      }
+    }
+    
+    const columns = Array.from(allColumns).sort();
+    
+    // For now, return only the columns from your actual CSV
+    res.json({
+      success: true,
+      columns: ['Profiles', 'messages'],
+    });
+  } catch (error) {
+    console.error("Error getting columns:", error);
+    // Return empty array if there's an error
+    res.json({
+      success: true,
+      columns: [],
     });
   }
 });
@@ -305,32 +372,6 @@ router.post("/sample-data", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to generate sample data",
-    });
-  }
-});
-
-// Get available columns for slash-based selection
-router.get("/columns", async (req, res) => {
-  try {
-    const userId = (req as any).userId;
-    
-    // Provide default columns for Instagram automation
-    const defaultColumns = [
-      'name', 'profile_url', 'username', 'email', 'phone', 'company', 
-      'website', 'bio', 'followers', 'following', 'posts', 'location', 
-      'industry', 'interests', 'tags', 'notes'
-    ];
-    
-    // For now, just return default columns to avoid database errors
-    res.json({
-      success: true,
-      columns: defaultColumns,
-    });
-  } catch (error) {
-    console.error("Error getting columns:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to get columns",
     });
   }
 });

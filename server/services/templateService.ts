@@ -209,6 +209,8 @@ export class TemplateService {
       const allColumns = new Set<string>();
       
       // Add standard columns for Instagram automation
+      allColumns.add('Profiles');
+      allColumns.add('messages');
       allColumns.add('name');
       allColumns.add('profile_url');
       allColumns.add('username');
@@ -224,13 +226,22 @@ export class TemplateService {
       allColumns.add('industry');
       allColumns.add('interests');
       
-      // Add custom fields from all lead files
+      // Add columns from uploaded lead files
       for (const file of leadFiles) {
         try {
           if (file.columnMapping && typeof file.columnMapping === 'object') {
             const mapping = file.columnMapping as Record<string, any>;
             
-            // Add custom fields
+            // Handle new simplified column mapping structure
+            if (mapping.selectedColumns && Array.isArray(mapping.selectedColumns)) {
+              mapping.selectedColumns.forEach((column: string) => {
+                if (typeof column === 'string' && column.trim()) {
+                  allColumns.add(column.trim());
+                }
+              });
+            }
+            
+            // Handle old complex mapping structure (for backward compatibility)
             if (mapping.customFields && typeof mapping.customFields === 'object') {
               Object.keys(mapping.customFields).forEach(field => {
                 if (typeof field === 'string' && field.trim()) {
@@ -241,7 +252,7 @@ export class TemplateService {
             
             // Also check for direct column mappings
             Object.keys(mapping).forEach(key => {
-              if (key !== 'customFields' && typeof key === 'string') {
+              if (key !== 'customFields' && key !== 'selectedColumns' && typeof key === 'string') {
                 const trimmedKey = key.trim();
                 if (trimmedKey) {
                   allColumns.add(trimmedKey);
@@ -260,9 +271,9 @@ export class TemplateService {
       console.error('Error getting available columns:', error);
       // Return default columns if there's an error
       return [
-        'name', 'profile_url', 'username', 'email', 'phone', 'company', 
-        'website', 'bio', 'followers', 'following', 'posts', 'location', 
-        'industry', 'interests'
+        'Profiles', 'messages', 'name', 'profile_url', 'username', 'email', 
+        'phone', 'company', 'website', 'bio', 'followers', 'following', 
+        'posts', 'location', 'industry', 'interests'
       ];
     }
   }
@@ -335,6 +346,10 @@ export class TemplateService {
     const original = await storage.getTemplateById(templateId);
     if (!original) {
       throw new Error("Template not found");
+    }
+
+    if (!original.userId) {
+      throw new Error("Template has no associated user");
     }
 
     return await this.createTemplate(original.userId, newName, original.content);
