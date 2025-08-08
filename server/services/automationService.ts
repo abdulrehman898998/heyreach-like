@@ -1,5 +1,5 @@
 import { storage } from "../storage";
-import { InstagramBot } from "../automation/instagramBot";
+import { SimpleInstagramBot } from "../automation/simpleBot";
 import type { Campaign, InstagramAccount, CampaignLead } from "@shared/schema";
 
 class AutomationService {
@@ -25,8 +25,8 @@ class AutomationService {
     }
 
     // Get Instagram accounts for this campaign
-    const accounts = await storage.getInstagramAccountsByUser(campaign.userId);
-    const availableAccounts = accounts.filter(acc => acc.isActive && acc.isHealthy);
+    const accounts = await storage.getInstagramAccountsByUser(campaign.userId!);
+    const availableAccounts = accounts.filter(acc => acc.isActive && (acc.healthScore || 0) > 50);
     
     if (availableAccounts.length === 0) {
       throw new Error("No healthy Instagram accounts available");
@@ -73,27 +73,37 @@ class AutomationService {
         accountIndex++;
 
         // Create Instagram bot instance
-        const bot = new InstagramBot(account.username, account.password);
-
-        // Send message
-        await bot.sendMessage(lead.profileUrl, lead.message);
-
-        // Update lead status
-        await storage.updateCampaignLead(lead.id, {
-          status: "sent",
-          sentAt: new Date()
+        const bot = new SimpleInstagramBot({ 
+          username: account.username, 
+          password: account.password 
         });
+
+        // Initialize bot and send message
+        await bot.initialize();
+        const leadData = await storage.getLeadById(lead.leadId!);
+        if (leadData) {
+          await bot.sendDirectMessage(leadData.profileUrl, lead.messageContent);
+
+          // Update lead status
+          await storage.updateCampaignLead(lead.id, {
+            status: "sent",
+            sentAt: new Date()
+          });
+          
+          // Close bot instance
+          await bot.close();
+        }
 
         // Add delay between messages (rate limiting)
         await this.delay(5000 + Math.random() * 5000); // 5-10 seconds
 
       } catch (error) {
-        console.error(`Failed to send message to ${lead.profileUrl}:`, error);
+        console.error(`Failed to send message:`, error);
         
         // Update lead status to failed
         await storage.updateCampaignLead(lead.id, {
           status: "failed",
-          error: error instanceof Error ? error.message : "Unknown error"
+          errorMessage: error instanceof Error ? error.message : "Unknown error"
         });
       }
     }

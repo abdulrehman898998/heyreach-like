@@ -27,7 +27,7 @@ export class InstagramBot {
     try {
       console.log('🔍 Checking Instagram login status...');
       // Check if we're already logged in by looking for the home icon or profile elements
-      const isLoggedIn = await this.page.locator('svg[aria-label="Home"], a[href*="/accounts/edit/"]').isVisible({ timeout: 3000 });
+      const isLoggedIn = await this.page?.locator('svg[aria-label="Home"], a[href*="/accounts/edit/"]').isVisible({ timeout: 3000 }) || false;
       console.log(`Login status: ${isLoggedIn ? 'Logged in' : 'Not logged in'}`);
       return isLoggedIn;
     } catch {
@@ -85,10 +85,10 @@ export class InstagramBot {
         try {
           await this.page.goto('https://httpbin.org/ip', { timeout: 10000 });
           const ipText = await this.page.textContent('body');
-          const ipData = JSON.parse(ipText);
+          const ipData = JSON.parse(ipText || '{}');
           console.log(`🔍 Current IP via proxy: ${ipData.origin}`);
         } catch (error) {
-          console.log('⚠️ Could not verify proxy IP:', error.message);
+          console.log('⚠️ Could not verify proxy IP:', error instanceof Error ? error.message : 'Unknown error');
         }
       }
 
@@ -761,6 +761,77 @@ export class InstagramBot {
     }
   }
 
+  async sendDirectMessage(profileUrl: string, message: string): Promise<void> {
+    if (!this.page) {
+      throw new Error("Bot not initialized. Call initialize() first.");
+    }
+
+    try {
+      console.log(`📤 Sending DM to ${profileUrl}`);
+      
+      // Navigate to profile
+      await this.page.goto(profileUrl, { waitUntil: 'networkidle' });
+      await this.page.waitForTimeout(2000);
+
+      // Handle any popups
+      await this.handleAnyPopups();
+
+      // Look for Message button
+      const messageButton = this.page.locator('div[role="button"]:has-text("Message")');
+      
+      if (await messageButton.isVisible({ timeout: 5000 })) {
+        await messageButton.click();
+        await this.page.waitForTimeout(2000);
+
+        // Find message input and send message
+        await this.sendMessage(message);
+      } else {
+        throw new Error("Message button not found on profile");
+      }
+
+    } catch (error) {
+      console.error(`Failed to send DM: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw error;
+    }
+  }
+
+  private async sendMessage(message: string): Promise<void> {
+    if (!this.page) throw new Error("Page not available");
+
+    const messageInputSelectors = [
+      'div[contenteditable="true"][aria-label*="Message"]',
+      'div[role="textbox"][contenteditable="true"]',
+      'div[contenteditable="true"]',
+      'textarea[placeholder*="Message"]'
+    ];
+
+    let messageInput = null;
+    for (const selector of messageInputSelectors) {
+      try {
+        messageInput = this.page.locator(selector).first();
+        await messageInput.waitFor({ state: 'visible', timeout: 3000 });
+        break;
+      } catch (e) {
+        continue;
+      }
+    }
+
+    if (!messageInput) {
+      throw new Error('Could not find message input field');
+    }
+
+    // Type the message
+    await messageInput.click();
+    await this.page.waitForTimeout(500);
+    await messageInput.type(message, { delay: 100 });
+    
+    // Send the message
+    await this.page.keyboard.press('Enter');
+    await this.page.waitForTimeout(2000);
+    
+    console.log('✅ Message sent successfully');
+  }
+
   async close(): Promise<void> {
     try {
       if (this.page) {
@@ -772,7 +843,7 @@ export class InstagramBot {
         this.context = null;
       }
     } catch (error) {
-      console.error('Error closing browser:', error);
+      console.error('Error closing browser:', error instanceof Error ? error.message : 'Unknown error');
     }
   }
 }
