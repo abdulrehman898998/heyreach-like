@@ -71,18 +71,20 @@ export default function Analytics() {
   }
 
   const getSuccessRate = () => {
-    if (!campaigns || campaigns.length === 0) return "0.0";
-    const completed = campaigns.filter((c: any) => c.status === 'completed').length;
-    return ((completed / campaigns.length) * 100).toFixed(1);
+    const campaignsArray = Array.isArray(campaigns) ? campaigns : [];
+    if (campaignsArray.length === 0) return "0.0";
+    const completed = campaignsArray.filter((c: any) => c.status === 'completed').length;
+    return ((completed / campaignsArray.length) * 100).toFixed(1);
   };
 
   const getCompletedCampaigns = () => {
-    if (!campaigns) return 0;
-    return campaigns.filter((c: any) => c.status === 'completed').length;
+    const campaignsArray = Array.isArray(campaigns) ? campaigns : [];
+    return campaignsArray.filter((c: any) => c.status === 'completed').length;
   };
 
   const getTotalCampaigns = () => {
-    return campaigns?.length || 0;
+    const campaignsArray = Array.isArray(campaigns) ? campaigns : [];
+    return campaignsArray.length;
   };
 
   return (
@@ -108,7 +110,7 @@ export default function Analytics() {
                 <div>
                   <p className="text-sm font-medium text-slate-600">Messages Sent</p>
                   <p className="text-3xl font-bold text-slate-900">
-                    {stats?.totalMessagesSent?.toLocaleString() || '0'}
+                    {(stats as any)?.totalMessagesSent?.toLocaleString() || '0'}
                   </p>
                   <p className="text-sm text-secondary mt-1">
                     <TrendingUp className="w-4 h-4 inline mr-1" />
@@ -171,7 +173,7 @@ export default function Analytics() {
                 <div>
                   <p className="text-sm font-medium text-slate-600">Campaigns</p>
                   <p className="text-3xl font-bold text-slate-900">
-                    {stats?.activeCampaigns || '0'}
+                    {(stats as any)?.activeCampaigns || '0'}
                   </p>
                   <p className="text-sm text-slate-500 mt-1">
                     {getCompletedCampaigns()}/{getTotalCampaigns()} completed
@@ -207,24 +209,24 @@ export default function Analytics() {
                 
                 <div className="flex justify-between items-center">
                   <span className="text-slate-600">Active Campaigns</span>
-                  <span className="font-semibold">{stats?.activeCampaigns || 0}</span>
+                  <span className="font-semibold">{(stats as any)?.activeCampaigns || 0}</span>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-2">
                   <div 
                     className="bg-accent h-2 rounded-full transition-all duration-300" 
-                    style={{ width: `${stats?.activeCampaigns ? Math.min((stats.activeCampaigns / 10) * 100, 100) : 0}%` }}
+                    style={{ width: `${(stats as any)?.activeCampaigns ? Math.min(((stats as any).activeCampaigns / 10) * 100, 100) : 0}%` }}
                   ></div>
                 </div>
 
                 <div className="flex justify-between items-center">
                   <span className="text-slate-600">Messages Delivered</span>
-                  <span className="font-semibold">{stats?.totalMessagesSent || 0}</span>
+                  <span className="font-semibold">{(stats as any)?.totalMessagesSent || 0}</span>
                 </div>
                 <div className="w-full bg-slate-200 rounded-full h-2">
                   <div 
                     className="bg-primary h-2 rounded-full transition-all duration-300" 
                     style={{ 
-                      width: `${stats?.totalMessagesSent ? Math.min((stats.totalMessagesSent / 1000) * 100, 100) : 0}%` 
+                      width: `${(stats as any)?.totalMessagesSent ? Math.min(((stats as any).totalMessagesSent / 1000) * 100, 100) : 0}%` 
                     }}
                   ></div>
                 </div>
@@ -238,14 +240,14 @@ export default function Analytics() {
               <CardTitle>Platform Breakdown</CardTitle>
             </CardHeader>
             <CardContent>
-              {!campaigns || campaigns.length === 0 ? (
+              {!Array.isArray(campaigns) || campaigns.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-slate-500">No campaign data available</p>
                 </div>
               ) : (
                 <div className="space-y-4">
                   {/* Instagram Stats */}
-                  {campaigns.some((c: any) => c.platform === 'instagram') && (
+                  {Array.isArray(campaigns) && campaigns.some((c: any) => c.platform === 'instagram') && (
                     <div className="flex items-center justify-between p-3 bg-pink-50 rounded-lg">
                       <div className="flex items-center space-x-3">
                         <div className="w-8 h-8 bg-pink-100 rounded-full flex items-center justify-center">
@@ -255,7 +257,7 @@ export default function Analytics() {
                       </div>
                       <div className="text-right">
                         <p className="font-semibold">
-                          {campaigns
+                          {(campaigns || [])
                             .filter((c: any) => c.platform === 'instagram')
                             .reduce((sum: number, c: any) => sum + c.messagesSent, 0)
                             .toLocaleString()}
@@ -266,7 +268,7 @@ export default function Analytics() {
                   )}
 
                   {/* Facebook Stats */}
-                  {campaigns.some((c: any) => c.platform === 'facebook') && (
+                  {Array.isArray(campaigns) && campaigns.some((c: any) => c.platform === 'facebook') && (
                     <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
                       <div className="flex items-center space-x-3">
                         <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
@@ -276,7 +278,7 @@ export default function Analytics() {
                       </div>
                       <div className="text-right">
                         <p className="font-semibold">
-                          {campaigns
+                          {(campaigns || [])
                             .filter((c: any) => c.platform === 'facebook')
                             .reduce((sum: number, c: any) => sum + c.messagesSent, 0)
                             .toLocaleString()}
@@ -297,7 +299,7 @@ export default function Analytics() {
             <CardTitle>Recent Campaign Performance</CardTitle>
           </CardHeader>
           <CardContent>
-            {!campaigns || campaigns.length === 0 ? (
+            {!Array.isArray(campaigns) || campaigns.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-slate-500">No campaigns to display</p>
               </div>
@@ -315,7 +317,7 @@ export default function Analytics() {
                     </tr>
                   </thead>
                   <tbody>
-                    {campaigns.slice(0, 5).map((campaign: any) => (
+                    {(campaigns || []).slice(0, 5).map((campaign: any) => (
                       <tr key={campaign.id} className="border-b border-slate-100">
                         <td className="py-3 px-4">
                           <div>

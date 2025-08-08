@@ -12,13 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Eye, EyeOff, Edit } from "lucide-react";
-import { SiInstagram, SiFacebook } from "react-icons/si";
+import { SiInstagram } from "react-icons/si";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 const addAccountSchema = z.object({
-  platform: z.enum(["instagram", "facebook"]),
+  platform: z.enum(["instagram"]),
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
   twofa: z.string().optional(),
@@ -52,7 +52,7 @@ export default function Accounts() {
 
   // Fetch social accounts
   const { data: accounts, error: accountsError, isLoading: isLoadingAccounts } = useQuery({
-    queryKey: ["/api/social-accounts"],
+    queryKey: ["/api/accounts"],
     enabled: isAuthenticated,
   });
 
@@ -95,102 +95,47 @@ export default function Accounts() {
   // Add account mutation
   const addAccountMutation = useMutation({
     mutationFn: async (data: AddAccountForm) => {
-      await apiRequest("POST", "/api/social-accounts", data);
+      await apiRequest("POST", "/api/accounts", data);
     },
     onSuccess: () => {
-      toast({
-        title: "Account Added",
-        description: "Social media account has been added successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/social-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });
       setIsAddAccountModalOpen(false);
       form.reset();
+      toast({ title: "Account added" });
     },
-    onError: (error) => {
-      if (isUnauthorizedError(error as Error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to add account",
-        variant: "destructive",
-      });
-    },
+    onError: (error: any) => {
+      toast({ title: "Failed to add account", description: error?.message ?? "" , variant: "destructive" });
+    }
   });
 
   // Edit account mutation
   const editAccountMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: AddAccountForm }) => {
-      await apiRequest("PUT", `/api/social-accounts/${id}`, data);
+      await apiRequest("PUT", `/api/accounts/${id}`, data);
     },
     onSuccess: () => {
-      toast({
-        title: "Account Updated",
-        description: "Social media account has been updated successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/social-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });
       setIsEditAccountModalOpen(false);
       setEditingAccount(null);
-      editForm.reset();
+      toast({ title: "Account updated" });
     },
-    onError: (error) => {
-      if (isUnauthorizedError(error as Error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to update account",
-        variant: "destructive",
-      });
-    },
+    onError: (error: any) => {
+      toast({ title: "Failed to update account", description: error?.message ?? "", variant: "destructive" });
+    }
   });
 
   // Delete account mutation
   const deleteAccountMutation = useMutation({
     mutationFn: async (accountId: number) => {
-      await apiRequest("DELETE", `/api/social-accounts/${accountId}`);
+      await apiRequest("DELETE", `/api/accounts/${accountId}`);
     },
     onSuccess: () => {
-      toast({
-        title: "Account Deleted",
-        description: "Social media account has been deleted",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/social-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/accounts"] });
+      toast({ title: "Account deleted" });
     },
-    onError: (error) => {
-      if (isUnauthorizedError(error as Error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
-      }
-      toast({
-        title: "Error",
-        description: "Failed to delete account",
-        variant: "destructive",
-      });
-    },
+    onError: (error: any) => {
+      toast({ title: "Failed to delete account", description: error?.message ?? "", variant: "destructive" });
+    }
   });
 
   const onSubmit = (data: AddAccountForm) => {
@@ -214,84 +159,8 @@ export default function Accounts() {
     setIsEditAccountModalOpen(true);
   };
 
-  const connectInstagramWebhook = async (accountId: number) => {
-    try {
-      const response = await fetch(`/api/auth/instagram/${accountId}`, {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        toast({
-          title: "Error",
-          description: errorData.error || "Failed to start Instagram connection",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const { authUrl } = await response.json();
-      
-      // Open Instagram OAuth in popup
-      const popup = window.open(
-        authUrl,
-        'instagram-oauth',
-        'width=600,height=700,scrollbars=yes,resizable=yes'
-      );
-
-      // Listen for popup messages and completion
-      const handleMessage = (event: MessageEvent) => {
-        if (event.data?.type === 'instagram_connected') {
-          if (event.data.success) {
-            // Refresh accounts data
-            queryClient.invalidateQueries({ queryKey: ["/api/social-accounts"] });
-            toast({
-              title: "Instagram Connected",
-              description: "Your Instagram account is now connected for webhook replies",
-            });
-          } else {
-            toast({
-              title: "Connection Failed",
-              description: event.data.error || "Failed to connect Instagram webhook",
-              variant: "destructive",
-            });
-          }
-          window.removeEventListener('message', handleMessage);
-        }
-      };
-
-      window.addEventListener('message', handleMessage);
-
-      // Fallback: check if popup closed without message
-      const checkClosed = setInterval(() => {
-        if (popup?.closed) {
-          clearInterval(checkClosed);
-          window.removeEventListener('message', handleMessage);
-          // Only show fallback if we didn't already get a message
-          setTimeout(() => {
-            queryClient.invalidateQueries({ queryKey: ["/api/social-accounts"] });
-          }, 1000);
-        }
-      }, 1000);
-
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to connect Instagram webhook",
-        variant: "destructive",
-      });
-    }
-  };
-
   const getPlatformIcon = (platform: string) => {
-    switch (platform) {
-      case 'instagram':
-        return <SiInstagram className="w-5 h-5 text-pink-500" />;
-      case 'facebook':
-        return <SiFacebook className="w-5 h-5 text-blue-500" />;
-      default:
-        return null;
-    }
+    return <SiInstagram className="w-5 h-5 text-pink-500" />;
   };
 
   const togglePasswordVisibility = (accountId: number) => {
@@ -322,8 +191,8 @@ export default function Accounts() {
       <header className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Social Media Accounts</h1>
-            <p className="text-slate-600">Add your Instagram and Facebook accounts to send automated messages. Your credentials are encrypted and stored securely.</p>
+            <h1 className="text-2xl font-bold text-slate-900">Instagram Accounts</h1>
+            <p className="text-slate-600">Add your Instagram accounts to send automated messages. Your credentials are encrypted and stored securely.</p>
           </div>
           <Dialog open={isAddAccountModalOpen} onOpenChange={setIsAddAccountModalOpen}>
             <DialogTrigger asChild>
@@ -334,7 +203,7 @@ export default function Accounts() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Add Social Media Account</DialogTitle>
+                <DialogTitle>Add Instagram Account</DialogTitle>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -352,7 +221,6 @@ export default function Accounts() {
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="instagram">Instagram</SelectItem>
-                            <SelectItem value="facebook">Facebook</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -423,7 +291,7 @@ export default function Accounts() {
           <Dialog open={isEditAccountModalOpen} onOpenChange={setIsEditAccountModalOpen}>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Edit Social Media Account</DialogTitle>
+                <DialogTitle>Edit Instagram Account</DialogTitle>
               </DialogHeader>
               <Form {...editForm}>
                 <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
@@ -441,7 +309,6 @@ export default function Accounts() {
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="instagram">Instagram</SelectItem>
-                            <SelectItem value="facebook">Facebook</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -500,7 +367,7 @@ export default function Accounts() {
                       disabled={editAccountMutation.isPending}
                       className="bg-primary hover:bg-primary/90"
                     >
-                      {editAccountMutation.isPending ? "Updating..." : "Update Account"}
+                      {editAccountMutation.isPending ? "Saving..." : "Save Changes"}
                     </Button>
                   </div>
                 </form>
@@ -510,137 +377,72 @@ export default function Accounts() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 p-6 overflow-auto">
-        {!accounts || accounts.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                <Plus className="w-8 h-8 text-slate-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">No accounts connected</h3>
-              <p className="text-slate-600 text-center mb-4">
-                Add your Instagram and Facebook accounts to start automating your outreach.<br/>
-                <span className="text-amber-600 font-medium text-sm">Note: For Instagram reply tracking, your account must be linked to a Facebook Business Page.</span>
-              </p>
-              <Button 
-                onClick={() => setIsAddAccountModalOpen(true)}
-                className="bg-primary hover:bg-primary/90"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Account
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {accounts.map((account: any) => (
-              <Card key={account.id} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center space-x-3">
-                      {getPlatformIcon(account.platform)}
-                      <div>
-                        <CardTitle className="text-lg">@{account.username}</CardTitle>
-                        <p className="text-sm text-slate-600 capitalize">{account.platform}</p>
+      {/* Content */}
+      <main className="flex-1 p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Accounts List */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Accounts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!Array.isArray(accounts) || accounts.length === 0 ? (
+                <div className="text-center text-slate-600 py-8">
+                  <p>No accounts added yet.</p>
+                  <p className="text-sm">Click "Add Account" to connect your first Instagram account.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {(accounts || []).map((account: any) => (
+                    <div key={account.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        {getPlatformIcon(account.platform)}
+                        <div>
+                          <p className="font-medium">@{account.username}</p>
+                          <p className="text-sm text-slate-600">Platform: Instagram</p>
+                        </div>
                       </div>
-                    </div>
-                    <Badge variant={account.isActive ? "default" : "secondary"}>
-                      {account.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {/* Password field */}
-                    <div>
-                      <label className="text-sm font-medium text-slate-700">Password</label>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Input
-                          type={showPasswords[account.id] ? "text" : "password"}
-                          value={showPasswords[account.id] ? atob(account.password) : "••••••••••"}
-                          readOnly
-                          className="flex-1"
-                        />
-                        <Button
+                      <div className="flex items-center gap-2">
+                        <Badge variant={account.status === 'active' ? 'default' : 'secondary'}>
+                          {account.status}
+                        </Badge>
+                        <Button variant="outline" size="sm" onClick={() => openEditModal(account)}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
                           size="sm"
-                          variant="ghost"
-                          onClick={() => togglePasswordVisibility(account.id)}
-                          title={showPasswords[account.id] ? "Hide password" : "Show password"}
+                          onClick={() => deleteAccountMutation.mutate(account.id)}
                         >
-                          {showPasswords[account.id] ? 
-                            <EyeOff className="w-4 h-4" /> : 
-                            <Eye className="w-4 h-4" />
-                          }
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => togglePasswordVisibility(account.id)}
+                        >
+                          {showPasswords[account.id] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </Button>
                       </div>
                     </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-                    {/* 2FA Status */}
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-600">2FA Enabled</span>
-                      <Badge variant={account.twofa ? "default" : "outline"}>
-                        {account.twofa ? "Yes" : "No"}
-                      </Badge>
-                    </div>
-
-                    {/* Last used */}
-                    {account.lastUsed && (
-                      <div className="text-xs text-slate-500">
-                        Last used: {new Date(account.lastUsed).toLocaleDateString()}
-                      </div>
-                    )}
-
-                    {/* Webhook Connection for Instagram */}
-                    {account.platform === 'instagram' && (
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-600">Webhook Connected</span>
-                        <div className="flex items-center gap-2">
-                          <Badge 
-                            variant={account.webhookConnected ? "default" : "outline"}
-                            className={account.webhookConnected ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"}
-                          >
-                            {account.webhookConnected ? "✓ Connected" : "Not Connected"}
-                          </Badge>
-                          {!account.webhookConnected && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => connectInstagramWebhook(account.id)}
-                            >
-                              Connect
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Actions */}
-                    <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openEditModal(account)}
-                        title="Edit account"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => deleteAccountMutation.mutate(account.id)}
-                        disabled={deleteAccountMutation.isPending}
-                        title="Delete account"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+          {/* Sidebar */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Tips</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm text-slate-600">
+              <p>• Use strong passwords and enable 2FA when possible.</p>
+              <p>• Accounts with stable activity perform better and get fewer blocks.</p>
+              <p>• Keep a low send rate per account to stay within Instagram limits.</p>
+            </CardContent>
+          </Card>
+        </div>
       </main>
     </div>
   );

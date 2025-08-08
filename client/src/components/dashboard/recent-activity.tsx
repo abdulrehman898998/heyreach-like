@@ -6,6 +6,9 @@ interface RecentActivityProps {
 }
 
 export default function RecentActivity({ activityLogs }: RecentActivityProps) {
+  // Ensure activityLogs is an array before using slice
+  const activityLogsArray = Array.isArray(activityLogs) ? activityLogs : [];
+
   const getActivityIcon = (action: string) => {
     switch (action) {
       case 'message_sent':
@@ -102,13 +105,13 @@ export default function RecentActivity({ activityLogs }: RecentActivityProps) {
         <CardTitle className="text-lg">Recent Activity</CardTitle>
       </CardHeader>
       <CardContent className="p-6">
-        {!activityLogs || activityLogs.length === 0 ? (
+        {activityLogsArray.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-slate-500">No recent activity</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {activityLogs.slice(0, 6).map((log) => (
+            {activityLogsArray.slice(0, 6).map((log) => (
               <div key={log.id} className="flex items-start space-x-3">
                 <div className={`w-8 h-8 ${getActivityIconBg(log.action)} rounded-full flex items-center justify-center flex-shrink-0`}>
                   {getActivityIcon(log.action)}

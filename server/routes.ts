@@ -1,705 +1,336 @@
-import type { Express } from "express";
-import { createServer, type Server } from "http";
-import { WebSocketServer, WebSocket } from "ws";
+import express, { type Express } from "express";
+import http from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
-import { automationService } from "./services/automationService";
-import { googleSheetsService } from "./services/googleSheetsService";
-import { BrowserSetup } from "./utils/browserSetup";
-import { handleInstagramWebhook, verifyInstagramWebhook } from "./routes/webhooks";
-import { instagramOAuthService } from "./services/instagramOAuthService";
-import {
-  insertSocialAccountSchema,
-  insertGoogleSheetSchema,
-  insertCampaignSchema,
-  insertProxySchema,
-} from "@shared/schema";
-import { z } from "zod";
+import leadsRouter from "./routes/leads";
+import templatesRouter from "./routes/templates";
+import campaignsRouter from "./routes/campaigns";
 
-export async function registerRoutes(app: Express): Promise<Server> {
-  // Instagram webhook routes (must be before auth middleware)
-  app.get('/api/webhooks/instagram', verifyInstagramWebhook);
-  app.post('/api/webhooks/instagram', handleInstagramWebhook);
+const app = express();
 
-  // Auth middleware
-  await setupAuth(app);
+// Middleware
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-  // WebSocket for real-time updates
-  const httpServer = createServer(app);
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-  
-  // Store active WebSocket connections by user ID
-  const activeConnections = new Map<string, WebSocket[]>();
+// Demo user bootstrap for memory mode
+app.post("/api/_dev/bootstrap-user", async (req, res) => {
+  try {
+    const { email = "demo@example.com", name = "Demo User" } = req.body || {};
+    let user = await (storage as any).getUserByEmail?.(email);
+    if (!user) {
+      user = await (storage as any).createUser({ email, name, password: "" } as any);
+    }
+    res.json({ success: true, user });
+  } catch (e) {
+    console.error("Bootstrap user error:", e);
+    res.status(500).json({ success: false, error: "Failed to bootstrap user" });
+  }
+});
 
-  wss.on('connection', (ws, req) => {
-    // Extract user ID from session (simplified)
-    ws.on('message', (message) => {
+// Simple authentication middleware - ALWAYS ALLOW FOR TESTING
+const authenticateUser = async (req: any, res: any, next: any) => {
+  try {
+        // Get user ID from header or create a demo user
+    let userId = req.headers['x-user-id'] as string | undefined;
+    
+    if (!userId) {
+      // Create a demo user if none exists
       try {
-        const data = JSON.parse(message.toString());
-        if (data.type === 'auth' && data.userId) {
-          if (!activeConnections.has(data.userId)) {
-            activeConnections.set(data.userId, []);
-          }
-          activeConnections.get(data.userId)!.push(ws);
-          
-          ws.on('close', () => {
-            const connections = activeConnections.get(data.userId) || [];
-            const index = connections.indexOf(ws);
-            if (index > -1) {
-              connections.splice(index, 1);
-            }
+        const demoUser = await (storage as any).getUserByEmail("demo@example.com");
+        if (demoUser) {
+          userId = demoUser.id;
+        } else {
+          const newUser = await (storage as any).createUser({
+            email: "demo@example.com",
+            name: "Demo User",
+            password: ""
           });
+          userId = newUser.id;
         }
       } catch (error) {
-        console.error('WebSocket message error:', error);
+        console.error("Failed to create/get demo user:", error);
+        return res.status(401).json({ error: "Authentication failed" });
       }
+    }
+
+    // Set the user ID and continue
+    (req as any).userId = userId;
+    next();
+  } catch (error) {
+    console.error("Authentication error:", error);
+    res.status(500).json({ error: "Authentication failed" });
+  }
+};
+
+// Health check
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// API Routes
+app.use("/api/leads", authenticateUser, leadsRouter);
+app.use("/api/templates", authenticateUser, templatesRouter);
+app.use("/api/campaigns", authenticateUser, campaignsRouter);
+
+// Instagram Account Management
+app.get("/api/accounts", authenticateUser, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const accounts = await (storage as any).getInstagramAccountsByUser(userId);
+    
+    res.json({
+      success: true,
+      accounts: accounts.map((account: any) => ({
+        id: account.id,
+        username: account.username,
+        platform: account.platform || 'instagram',
+        status: account.isActive ? 'active' : 'inactive',
+        healthScore: account.healthScore,
+        isActive: account.isActive,
+        lastUsed: account.lastUsed,
+        createdAt: account.createdAt,
+      })),
     });
-  });
-
-  // Function to broadcast to user's connections
-  const broadcastToUser = (userId: string, data: any) => {
-    const connections = activeConnections.get(userId) || [];
-    connections.forEach(ws => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(data));
-      }
+  } catch (error) {
+    console.error("Error getting accounts:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to get accounts",
     });
-  };
+  }
+});
 
-  // Set up automation service with WebSocket broadcast
-  automationService.setBroadcastFunction(broadcastToUser);
+app.post("/api/accounts", authenticateUser, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const { username, password } = req.body;
 
-  // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
-    }
-  });
-
-  // System status routes
-  app.get('/api/system/browser-status', isAuthenticated, async (req, res) => {
-    try {
-      const status = await BrowserSetup.checkBrowserAvailability();
-      res.json({
-        ...status,
-        isInstalling: BrowserSetup.isCurrentlyInstalling()
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        error: "Username and password are required",
       });
-    } catch (error) {
-      console.error("Error checking browser status:", error);
-      res.status(500).json({ message: "Failed to check browser status" });
     }
-  });
 
-  app.post('/api/system/install-browser', isAuthenticated, async (req, res) => {
-    try {
-      if (BrowserSetup.isCurrentlyInstalling()) {
-        return res.json({ message: "Installation already in progress" });
-      }
+    const account = await (storage as any).createInstagramAccount({
+      userId,
+      username,
+      password,
+      platform: 'instagram',
+      healthScore: 100,
+      isActive: true,
+    });
+    
+    res.json({
+      success: true,
+      account: {
+        id: account.id,
+        username: account.username,
+        platform: account.platform || 'instagram',
+        status: account.isActive ? 'active' : 'inactive',
+        healthScore: account.healthScore,
+        isActive: account.isActive,
+        createdAt: account.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error("Error creating account:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to create account",
+    });
+  }
+});
 
-      // Start installation in background
-      BrowserSetup.installBrowser().then(success => {
-        console.log(`Browser installation ${success ? 'completed' : 'failed'}`);
-      }).catch(error => {
-        console.error('Browser installation error:', error);
+app.put("/api/accounts/:id", authenticateUser, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const accountId = parseInt(req.params.id);
+    const updates = req.body;
+
+    // Verify account belongs to user
+    const account = await (storage as any).getInstagramAccountById(accountId);
+    if (!account || account.userId !== userId) {
+      return res.status(404).json({
+        success: false,
+        error: "Account not found",
       });
-
-      res.json({ message: "Browser installation started" });
-    } catch (error) {
-      console.error("Error starting browser installation:", error);
-      res.status(500).json({ message: "Failed to start browser installation" });
     }
-  });
 
-  // Instagram OAuth for webhook subscription
-  app.get("/api/auth/instagram/:socialAccountId", isAuthenticated, async (req: any, res) => {
-    try {
-      const { socialAccountId } = req.params;
-      const userId = req.user.claims.sub;
-      
-      if (!instagramOAuthService.isConfigured()) {
-        return res.status(400).json({ 
-          error: "Instagram OAuth not configured. Admin needs to add Meta App credentials." 
-        });
-      }
+    const updatedAccount = await (storage as any).updateInstagramAccount(accountId, updates);
+    
+    res.json({
+      success: true,
+      account: {
+        id: updatedAccount.id,
+        username: updatedAccount.username,
+        healthScore: updatedAccount.healthScore,
+        isActive: updatedAccount.isActive,
+        lastUsed: updatedAccount.lastUsed,
+        updatedAt: updatedAccount.updatedAt,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating account:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update account",
+    });
+  }
+});
 
-      const authUrl = instagramOAuthService.getAuthUrl(userId, socialAccountId);
-      res.json({ authUrl });
-    } catch (error) {
-      console.error("Instagram OAuth error:", error);
-      res.status(500).json({ error: "Failed to generate Instagram OAuth URL" });
-    }
-  });
+app.delete("/api/accounts/:id", authenticateUser, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const accountId = parseInt(req.params.id);
 
-  app.get("/api/auth/instagram/callback", async (req, res) => {
-    try {
-      const { code, state } = req.query;
-      
-      if (!code || !state) {
-        return res.status(400).json({ error: "Missing authorization code or state" });
-      }
-
-      // Decode state to get user and social account info
-      const [userId, socialAccountId] = (state as string).split(':');
-      
-      // Exchange code for tokens
-      const tokenData = await instagramOAuthService.exchangeCodeForTokens(code as string);
-      
-      // Get Instagram Business accounts
-      const instagramAccounts = await instagramOAuthService.getInstagramBusinessAccounts(tokenData.access_token);
-      
-      if (instagramAccounts.length === 0) {
-        return res.status(400).json({ 
-          error: "No Instagram Business accounts found. Make sure your Instagram account is set to Business." 
-        });
-      }
-
-      // Use the first Instagram Business account found
-      const instagramAccount = instagramAccounts[0];
-      
-      // Subscribe to webhooks
-      const webhookSubscribed = await instagramOAuthService.subscribeToWebhooks(
-        instagramAccount.page_access_token,
-        instagramAccount.page_id
-      );
-
-      // Update social account with Instagram Business details
-      await storage.updateSocialAccount(parseInt(socialAccountId), {
-        instagramBusinessId: instagramAccount.id,
-        pageAccessToken: instagramAccount.page_access_token,
-        businessId: instagramAccount.business_id, // Store Business Manager ID for webhook matching
-        webhookConnected: webhookSubscribed,
+    // Verify account belongs to user
+    const account = await (storage as any).getInstagramAccountById(accountId);
+    if (!account || account.userId !== userId) {
+      return res.status(404).json({
+        success: false,
+        error: "Account not found",
       });
-
-      // Create a success page that closes the popup and refreshes parent
-      const successHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Instagram Connected</title>
-          <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f0f9ff; }
-            .success { color: #059669; font-size: 18px; margin-bottom: 20px; }
-            .loading { color: #6b7280; }
-          </style>
-        </head>
-        <body>
-          <div class="success">✓ Instagram Connected Successfully!</div>
-          <div class="loading">Closing window...</div>
-          <script>
-            // Notify parent window and close popup
-            if (window.opener) {
-              window.opener.postMessage({ type: 'instagram_connected', success: true }, '*');
-            }
-            setTimeout(() => window.close(), 2000);
-          </script>
-        </body>
-        </html>
-      `;
-      res.send(successHtml);
-      
-    } catch (error) {
-      console.error("Instagram OAuth callback error:", error);
-      
-      // Create an error page that closes the popup
-      const errorHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Instagram Connection Failed</title>
-          <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #fef2f2; }
-            .error { color: #dc2626; font-size: 18px; margin-bottom: 20px; }
-            .loading { color: #6b7280; }
-          </style>
-        </head>
-        <body>
-          <div class="error">❌ Instagram Connection Failed</div>
-          <div class="loading">Closing window...</div>
-          <script>
-            // Notify parent window and close popup
-            if (window.opener) {
-              window.opener.postMessage({ type: 'instagram_connected', success: false, error: '${error.message}' }, '*');
-            }
-            setTimeout(() => window.close(), 3000);
-          </script>
-        </body>
-        </html>
-      `;
-      res.send(errorHtml);
     }
+
+    // Deactivate account instead of deleting
+    await (storage as any).updateInstagramAccount(accountId, { isActive: false });
+    
+    res.json({
+      success: true,
+      message: "Account deactivated successfully",
+    });
+  } catch (error) {
+    console.error("Error deactivating account:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to deactivate account",
+    });
+  }
+});
+
+// Analytics Statistics
+app.get("/api/analytics/stats", authenticateUser, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    
+    // Get user stats
+    const accounts = await (storage as any).getInstagramAccountsByUser(userId);
+    const leadFiles = await (storage as any).getLeadFilesByUser(userId);
+    const templates = await (storage as any).getTemplatesByUser(userId);
+    const campaigns = await (storage as any).getCampaignsByUser(userId);
+    
+    // Calculate statistics
+    const stats = {
+      totalMessagesSent: campaigns.reduce((sum: number, c: any) => sum + (c.sentCount || 0), 0),
+      activeCampaigns: campaigns.filter((c: any) => c.status === "running" || c.status === "scheduled").length,
+      totalAccounts: accounts.length,
+      totalLeads: leadFiles.reduce((sum: number, file: any) => sum + file.totalRows, 0),
+    };
+    
+    res.json({
+      success: true,
+      stats,
+    });
+  } catch (error) {
+    console.error("Error getting analytics stats:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to get analytics statistics",
+    });
+  }
+});
+
+// Activity Logs
+app.get("/api/activity-logs", authenticateUser, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    
+    // For now, return empty array - can be extended later
+    const activityLogs: any[] = [];
+    
+    res.json({
+      success: true,
+      logs: activityLogs,
+    });
+  } catch (error) {
+    console.error("Error getting activity logs:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to get activity logs",
+    });
+  }
+});
+
+// Dashboard Statistics
+app.get("/api/dashboard", authenticateUser, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    
+    // Get user stats
+    const accounts = await (storage as any).getInstagramAccountsByUser(userId);
+    const leadFiles = await (storage as any).getLeadFilesByUser(userId);
+    const templates = await (storage as any).getTemplatesByUser(userId);
+    const campaigns = await (storage as any).getCampaignsByUser(userId);
+    
+    // Calculate statistics
+    const stats = {
+      accounts: {
+        total: accounts.length,
+        active: accounts.filter((a: any) => a.isActive).length,
+        healthy: accounts.filter((a: any) => a.healthScore && a.healthScore >= 50).length,
+      },
+      leads: {
+        total: leadFiles.reduce((sum: number, file: any) => sum + file.totalRows, 0),
+        files: leadFiles.length,
+      },
+      templates: {
+        total: templates.length,
+        withVariables: templates.filter((t: any) => t.variables && t.variables.length > 0).length,
+      },
+      campaigns: {
+        total: campaigns.length,
+        active: campaigns.filter((c: any) => c.status === "running" || c.status === "scheduled").length,
+        completed: campaigns.filter((c: any) => c.status === "completed").length,
+        totalSent: campaigns.reduce((sum: number, c: any) => sum + (c.sentCount || 0), 0),
+      },
+    };
+    
+    res.json({
+      success: true,
+      stats,
+    });
+  } catch (error) {
+    console.error("Error getting dashboard stats:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to get dashboard statistics",
+    });
+  }
+});
+
+// Error handling middleware
+app.use((error: any, req: any, res: any, next: any) => {
+  console.error("Unhandled error:", error);
+  res.status(500).json({
+    success: false,
+    error: "Internal server error",
   });
+});
 
-  // Social accounts routes
-  app.get('/api/social-accounts', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const accounts = await storage.getSocialAccountsByUser(userId);
-      res.json(accounts);
-    } catch (error) {
-      console.error("Error fetching social accounts:", error);
-      res.status(500).json({ message: "Failed to fetch social accounts" });
-    }
+// 404 handler - only for API routes
+app.use("/api/*", (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: "API endpoint not found",
   });
+});
 
-  app.post('/api/social-accounts', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const validatedData = insertSocialAccountSchema.parse({
-        ...req.body,
-        userId,
-      });
+export default app;
 
-      // Encrypt password before storing (simplified)
-      validatedData.password = Buffer.from(validatedData.password).toString('base64');
-
-      const account = await storage.createSocialAccount(validatedData);
-      await storage.createActivityLog({
-        userId,
-        action: 'social_account_added',
-        details: `Added ${account.platform} account: ${account.username}`,
-      });
-
-      res.json(account);
-    } catch (error) {
-      console.error("Error creating social account:", error);
-      res.status(400).json({ message: "Failed to create social account" });
-    }
-  });
-
-  app.put('/api/social-accounts/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const accountId = parseInt(req.params.id);
-      
-      const validatedData = insertSocialAccountSchema.parse({
-        ...req.body,
-        userId,
-      });
-
-      // Encrypt password before storing
-      validatedData.password = Buffer.from(validatedData.password).toString('base64');
-
-      const updatedAccount = await storage.updateSocialAccount(accountId, validatedData);
-      await storage.createActivityLog({
-        userId,
-        action: 'social_account_updated',
-        details: `Updated ${updatedAccount.platform} account: ${updatedAccount.username}`,
-      });
-
-      res.json(updatedAccount);
-    } catch (error) {
-      console.error("Error updating social account:", error);
-      res.status(400).json({ message: "Failed to update social account" });
-    }
-  });
-
-  app.delete('/api/social-accounts/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const accountId = parseInt(req.params.id);
-      
-      await storage.deleteSocialAccount(accountId);
-      await storage.createActivityLog({
-        userId,
-        action: 'social_account_deleted',
-        details: `Deleted social account`,
-      });
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting social account:", error);
-      res.status(500).json({ message: "Failed to delete social account" });
-    }
-  });
-
-  // Google OAuth routes
-  app.get("/api/auth/google", isAuthenticated, async (req: any, res) => {
-    try {
-      console.log('Google auth request from user:', req.user.claims.sub);
-      const authUrl = googleSheetsService.getAuthUrl(req.user.claims.sub);
-      console.log('Generated auth URL:', authUrl);
-      res.json({ authUrl });
-    } catch (error) {
-      console.error("Error generating Google auth URL:", error);
-      res.status(500).json({ error: "Failed to generate auth URL", details: error.message });
-    }
-  });
-
-  app.get("/api/auth/google/callback", async (req, res) => {
-    try {
-      const { code, state: userId } = req.query;
-      
-      if (!code || !userId) {
-        return res.status(400).json({ error: "Missing authorization code or user ID" });
-      }
-
-      const tokens = await googleSheetsService.exchangeCodeForTokens(code as string);
-      
-      // Redirect to frontend with tokens  
-      const frontendUrl = process.env.NODE_ENV === 'development'
-        ? 'http://localhost:3000/google-sheets'
-        : 'https://4e5d0c13-a2dd-49ed-8535-2554e092b236-00-t14c84l0xx4p.picard.replit.dev/google-sheets';
-      res.redirect(`${frontendUrl}?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}`);
-    } catch (error) {
-      console.error("Error handling Google OAuth callback:", error);
-      res.status(500).json({ error: "Failed to authenticate with Google" });
-    }
-  });
-
-  app.get("/api/google/sheets", isAuthenticated, async (req: any, res) => {
-    try {
-      const { access_token, refresh_token } = req.query;
-      
-      if (!access_token || !refresh_token) {
-        return res.status(400).json({ error: "Missing access tokens" });
-      }
-
-      const sheets = await googleSheetsService.getUserSheets(
-        access_token as string, 
-        refresh_token as string
-      );
-      res.json(sheets);
-    } catch (error) {
-      console.error("Error fetching user sheets:", error);
-      res.status(500).json({ error: "Failed to fetch sheets" });
-    }
-  });
-
-  app.get("/api/google/sheets/:sheetId/metadata", isAuthenticated, async (req: any, res) => {
-    try {
-      const { sheetId } = req.params;
-      const { access_token, refresh_token } = req.query;
-      
-      if (!access_token || !refresh_token) {
-        return res.status(400).json({ error: "Missing access tokens" });
-      }
-
-      const metadata = await googleSheetsService.getSheetMetadata(
-        sheetId,
-        access_token as string,
-        refresh_token as string
-      );
-      res.json(metadata);
-    } catch (error) {
-      console.error("Error fetching sheet metadata:", error);
-      res.status(500).json({ error: "Failed to fetch sheet metadata" });
-    }
-  });
-
-  // Google Sheets routes
-  app.get('/api/google-sheets', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const sheets = await storage.getGoogleSheetsByUser(userId);
-      res.json(sheets);
-    } catch (error) {
-      console.error("Error fetching Google Sheets:", error);
-      res.status(500).json({ message: "Failed to fetch Google Sheets" });
-    }
-  });
-
-  app.post('/api/google-sheets', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const validatedData = insertGoogleSheetSchema.parse({
-        ...req.body,
-        userId,
-      });
-
-      // Validate and process the Google Sheets URL
-      const sheetData = await googleSheetsService.validateSheet(validatedData.sheetUrl);
-      
-      console.log('Creating Google Sheet with data:', validatedData);
-      
-      const sheet = await storage.createGoogleSheet(validatedData);
-      await storage.createActivityLog({
-        userId,
-        action: 'google_sheet_added',
-        details: `Added Google Sheet: ${sheet.name}`,
-      });
-
-      res.json(sheet);
-    } catch (error) {
-      console.error("Error creating Google Sheet:", error);
-      res.status(400).json({ message: "Failed to create Google Sheet" });
-    }
-  });
-
-  app.delete('/api/google-sheets/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const sheetId = parseInt(req.params.id);
-      
-      // Get sheet info before deleting for logging
-      const sheet = await storage.getGoogleSheet(sheetId);
-      if (!sheet || sheet.userId !== userId) {
-        return res.status(404).json({ message: "Google Sheet not found or access denied" });
-      }
-      
-      await storage.deleteGoogleSheet(sheetId);
-      await storage.createActivityLog({
-        userId,
-        action: 'google_sheet_deleted',
-        details: `Deleted Google Sheet: ${sheet.name}`,
-      });
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting Google Sheet:", error);
-      res.status(500).json({ message: "Failed to delete Google Sheet" });
-    }
-  });
-
-  // Campaigns routes
-  app.get('/api/campaigns', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const campaigns = await storage.getCampaignsByUser(userId);
-      res.json(campaigns);
-    } catch (error) {
-      console.error("Error fetching campaigns:", error);
-      res.status(500).json({ message: "Failed to fetch campaigns" });
-    }
-  });
-
-  app.post('/api/campaigns', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const validatedData = insertCampaignSchema.parse({
-        ...req.body,
-        userId,
-      });
-
-      const campaign = await storage.createCampaign(validatedData);
-      await storage.createActivityLog({
-        userId,
-        action: 'campaign_created',
-        details: `Created campaign: ${campaign.name}`,
-      });
-
-      res.json(campaign);
-    } catch (error) {
-      console.error("Error creating campaign:", error);
-      res.status(400).json({ message: "Failed to create campaign" });
-    }
-  });
-
-  app.post('/api/campaigns/:id/start', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const campaignId = parseInt(req.params.id);
-      
-      const campaign = await storage.getCampaign(campaignId);
-      if (!campaign || campaign.userId !== userId) {
-        return res.status(404).json({ message: "Campaign not found" });
-      }
-
-      // Start the automation
-      automationService.startCampaign(campaignId, userId);
-      
-      await storage.updateCampaign(campaignId, {
-        status: 'running',
-        startedAt: new Date(),
-      });
-
-      await storage.createActivityLog({
-        userId,
-        action: 'campaign_started',
-        details: `Started campaign: ${campaign.name}`,
-      });
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error starting campaign:", error);
-      res.status(500).json({ message: "Failed to start campaign" });
-    }
-  });
-
-  app.post('/api/campaigns/:id/pause', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const campaignId = parseInt(req.params.id);
-      
-      const campaign = await storage.getCampaign(campaignId);
-      if (!campaign || campaign.userId !== userId) {
-        return res.status(404).json({ message: "Campaign not found" });
-      }
-
-      automationService.pauseCampaign(campaignId);
-      
-      await storage.updateCampaign(campaignId, {
-        status: 'paused',
-      });
-
-      await storage.createActivityLog({
-        userId,
-        action: 'campaign_paused',
-        details: `Paused campaign: ${campaign.name}`,
-      });
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error pausing campaign:", error);
-      res.status(500).json({ message: "Failed to pause campaign" });
-    }
-  });
-
-  app.delete('/api/campaigns/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const campaignId = parseInt(req.params.id);
-      
-      const campaign = await storage.getCampaign(campaignId);
-      if (!campaign || campaign.userId !== userId) {
-        return res.status(404).json({ message: "Campaign not found" });
-      }
-
-      // Stop automation if running
-      if (campaign.status === 'running') {
-        automationService.pauseCampaign(campaignId);
-      }
-
-      await storage.deleteCampaign(campaignId);
-      await storage.createActivityLog({
-        userId,
-        action: 'campaign_deleted',
-        details: `Deleted campaign: ${campaign.name}`,
-      });
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting campaign:", error);
-      res.status(500).json({ message: "Failed to delete campaign" });
-    }
-  });
-
-  // Analytics routes
-  app.get('/api/analytics/stats', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const stats = await storage.getUserStats(userId);
-      res.json(stats);
-    } catch (error) {
-      console.error("Error fetching analytics:", error);
-      res.status(500).json({ message: "Failed to fetch analytics" });
-    }
-  });
-
-  app.get('/api/activity-logs', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
-      const logs = await storage.getActivityLogsByUser(userId, limit);
-      res.json(logs);
-    } catch (error) {
-      console.error("Error fetching activity logs:", error);
-      res.status(500).json({ message: "Failed to fetch activity logs" });
-    }
-  });
-
-  // Proxy routes
-  app.get('/api/proxies', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const proxies = await storage.getProxiesByUser(userId);
-      res.json(proxies);
-    } catch (error) {
-      console.error("Error fetching proxies:", error);
-      res.status(500).json({ message: "Failed to fetch proxies" });
-    }
-  });
-
-  app.post('/api/proxies', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const validatedData = insertProxySchema.parse({
-        ...req.body,
-        userId,
-      });
-
-      const proxy = await storage.createProxy(validatedData);
-      await storage.createActivityLog({
-        userId,
-        action: 'proxy_added',
-        details: `Added proxy: ${proxy.name} (${proxy.host}:${proxy.port})`,
-      });
-
-      res.json(proxy);
-    } catch (error) {
-      console.error("Error creating proxy:", error);
-      res.status(400).json({ message: "Failed to create proxy" });
-    }
-  });
-
-  app.put('/api/proxies/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const proxyId = parseInt(req.params.id);
-      
-      const validatedData = insertProxySchema.partial().parse(req.body);
-      const updatedProxy = await storage.updateProxy(proxyId, validatedData);
-
-      await storage.createActivityLog({
-        userId,
-        action: 'proxy_updated',
-        details: `Updated proxy: ${updatedProxy.name}`,
-      });
-
-      res.json(updatedProxy);
-    } catch (error) {
-      console.error("Error updating proxy:", error);
-      res.status(400).json({ message: "Failed to update proxy" });
-    }
-  });
-
-  app.delete('/api/proxies/:id', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const proxyId = parseInt(req.params.id);
-      
-      await storage.deleteProxy(proxyId);
-      await storage.createActivityLog({
-        userId,
-        action: 'proxy_deleted',
-        details: `Deleted proxy (ID: ${proxyId})`,
-      });
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting proxy:", error);
-      res.status(500).json({ message: "Failed to delete proxy" });
-    }
-  });
-
-  // Manual reply recording
-  app.post('/api/replies', isAuthenticated, async (req: any, res) => {
-    try {
-      const validatedData = insertReplySchema.parse(req.body);
-      const reply = await storage.createReply(validatedData);
-
-      // Update campaign stats
-      const message = await storage.updateMessage(reply.messageId, {
-        status: 'replied',
-      });
-
-      // Broadcast update to user
-      const userId = req.user.claims.sub;
-      broadcastToUser(userId, {
-        type: 'reply_received',
-        data: reply,
-      });
-
-      res.json(reply);
-    } catch (error) {
-      console.error("Error creating reply:", error);
-      res.status(400).json({ message: "Failed to create reply" });
-    }
-  });
-
-  return httpServer;
+export async function registerRoutes(hostApp: Express) {
+  // Mount our app onto the provided Express app
+  hostApp.use(app);
+  // Create and return an HTTP server for Vite HMR
+  const server = http.createServer(hostApp);
+  return server;
 }

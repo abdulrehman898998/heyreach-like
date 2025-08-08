@@ -1,363 +1,342 @@
+import 'dotenv/config';
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import { memoryStorage } from "./storage.memory";
+import { like } from "drizzle-orm";
+import * as schema from "../shared/schema.js";
 import {
   users,
-  socialAccounts,
-  googleSheets,
+  instagramAccounts,
+  leadFiles,
+  leads,
+  templates,
   campaigns,
-  campaignTargets,
-  messages,
-  activityLogs,
-  proxies,
-  replies,
+  campaignLeads,
   type User,
-  type UpsertUser,
-  type SocialAccount,
-  type InsertSocialAccount,
-  type GoogleSheet,
-  type InsertGoogleSheet,
+  type NewUser,
+  type InstagramAccount,
+  type NewInstagramAccount,
+  type LeadFile,
+  type NewLeadFile,
+  type Lead,
+  type NewLead,
+  type Template,
+  type NewTemplate,
   type Campaign,
-  type InsertCampaign,
-  type CampaignTarget,
-  type InsertCampaignTarget,
-  type Message,
-  type InsertMessage,
-  type ActivityLog,
-  type InsertActivityLog,
-  type Proxy,
-  type InsertProxy,
-  type Reply,
-  type InsertReply,
+  type NewCampaign,
+  type CampaignLead,
+  type NewCampaignLead,
+  type ColumnMapping,
+  type CampaignScheduling,
+  extractTemplateVariables,
+  generateMessage,
 } from "@shared/schema";
-import { db } from "./db";
-import { eq, desc, and, count, sum } from "drizzle-orm";
+import { eq, and, desc, count, gte, lte } from "drizzle-orm";
 
-export interface IStorage {
-  // User operations (mandatory for Replit Auth)
-  getUser(id: string): Promise<User | undefined>;
-  upsertUser(user: UpsertUser): Promise<User>;
+// Database connection
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/instagram_automation";
+const client = postgres(connectionString);
+export const db = drizzle(client, { schema });
 
-  // Social accounts
-  createSocialAccount(account: InsertSocialAccount): Promise<SocialAccount>;
-  getSocialAccountsByUser(userId: string): Promise<SocialAccount[]>;
-  getSocialAccountsByPlatform(platform: 'instagram' | 'facebook'): Promise<SocialAccount[]>;
-  updateSocialAccount(id: number, updates: Partial<SocialAccount>): Promise<SocialAccount>;
-  deleteSocialAccount(id: number): Promise<void>;
+export class DatabaseStorage {
+  // User Management
+  async createUser(userData: NewUser): Promise<User> {
+    const [user] = await db.insert(users).values(userData).returning();
+    return user;
+  }
 
-  // Google Sheets
-  createGoogleSheet(sheet: InsertGoogleSheet): Promise<GoogleSheet>;
-  getGoogleSheetsByUser(userId: string): Promise<GoogleSheet[]>;
-  getGoogleSheet(id: number): Promise<GoogleSheet | undefined>;
-  updateGoogleSheet(id: number, updates: Partial<GoogleSheet>): Promise<GoogleSheet>;
-  deleteGoogleSheet(id: number): Promise<void>;
-
-  // Campaigns
-  createCampaign(campaign: InsertCampaign): Promise<Campaign>;
-  getCampaignsByUser(userId: string): Promise<Campaign[]>;
-  getCampaign(id: number): Promise<Campaign | undefined>;
-  updateCampaign(id: number, updates: Partial<Campaign>): Promise<Campaign>;
-  deleteCampaign(id: number): Promise<void>;
-
-  // Campaign targets
-  createCampaignTargets(targets: InsertCampaignTarget[]): Promise<CampaignTarget[]>;
-  getCampaignTargets(campaignId: number): Promise<CampaignTarget[]>;
-
-  // Messages
-  createMessage(message: InsertMessage): Promise<Message>;
-  getMessagesByCampaign(campaignId: number): Promise<Message[]>;
-  updateMessage(id: number, updates: Partial<Message>): Promise<Message>;
-
-  // Proxies
-  createProxy(proxy: InsertProxy): Promise<Proxy>;
-  getProxiesByUser(userId: string): Promise<Proxy[]>;
-  getActiveProxiesByUser(userId: string): Promise<Proxy[]>;
-  updateProxy(id: number, updates: Partial<Proxy>): Promise<Proxy>;
-  deleteProxy(id: number): Promise<void>;
-
-  // Activity logs
-  createActivityLog(log: InsertActivityLog): Promise<ActivityLog>;
-  getActivityLogsByUser(userId: string, limit?: number): Promise<ActivityLog[]>;
-
-  // Replies  
-  createReply(reply: InsertReply): Promise<Reply>;
-  getRepliesByMessage(messageId: number): Promise<Reply[]>;
-  getRepliesByCampaign(campaignId: number): Promise<Reply[]>;
-  getMessagesByInstagramId(instagramMessageId: string): Promise<Message[]>;
-
-  // Analytics
-  getUserStats(userId: string): Promise<{
-    totalMessagesSent: number;
-    activeCampaigns: number;
-    totalRepliesReceived: number;
-  }>;
-}
-
-export class DatabaseStorage implements IStorage {
-  // User operations (mandatory for Replit Auth)
-  async getUser(id: string): Promise<User | undefined> {
+  async getUserById(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
-  async upsertUser(userData: UpsertUser): Promise<User> {
-    const [user] = await db
-      .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...userData,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
 
-  // Social accounts
-  async createSocialAccount(account: InsertSocialAccount): Promise<SocialAccount> {
-    const [created] = await db.insert(socialAccounts).values(account).returning();
-    return created;
+  // Instagram Account Management
+  async createInstagramAccount(accountData: NewInstagramAccount): Promise<InstagramAccount> {
+    const [account] = await db.insert(instagramAccounts).values(accountData).returning();
+    return account;
   }
 
-  async getSocialAccountsByUser(userId: string): Promise<SocialAccount[]> {
-    return await db
-      .select()
-      .from(socialAccounts)
-      .where(eq(socialAccounts.userId, userId))
-      .orderBy(desc(socialAccounts.createdAt));
+  async getInstagramAccountsByUser(userId: string): Promise<InstagramAccount[]> {
+    return await db.select().from(instagramAccounts).where(eq(instagramAccounts.userId, userId));
   }
 
-  async getSocialAccountsByPlatform(platform: 'instagram' | 'facebook'): Promise<SocialAccount[]> {
-    return await db
-      .select()
-      .from(socialAccounts)
-      .where(eq(socialAccounts.platform, platform));
+  async getInstagramAccountById(id: number): Promise<InstagramAccount | undefined> {
+    const [account] = await db.select().from(instagramAccounts).where(eq(instagramAccounts.id, id));
+    return account;
   }
 
-  async updateSocialAccount(id: number, updates: Partial<SocialAccount>): Promise<SocialAccount> {
-    const [updated] = await db
-      .update(socialAccounts)
-      .set(updates)
-      .where(eq(socialAccounts.id, id))
-      .returning();
-    return updated;
+  async updateInstagramAccount(id: number, updates: Partial<InstagramAccount>): Promise<InstagramAccount> {
+    const [account] = await db.update(instagramAccounts).set(updates).where(eq(instagramAccounts.id, id)).returning();
+    return account;
   }
 
-  async deleteSocialAccount(id: number): Promise<void> {
-    await db.delete(socialAccounts).where(eq(socialAccounts.id, id));
+  // Lead File Management
+  async createLeadFile(fileData: NewLeadFile): Promise<LeadFile> {
+    const [file] = await db.insert(leadFiles).values(fileData).returning();
+    return file;
   }
 
-  // Google Sheets
-  async createGoogleSheet(sheet: InsertGoogleSheet): Promise<GoogleSheet> {
-    const [created] = await db.insert(googleSheets).values(sheet).returning();
-    return created;
+  async getLeadFilesByUser(userId: string): Promise<LeadFile[]> {
+    return await db.select().from(leadFiles).where(eq(leadFiles.userId, userId)).orderBy(desc(leadFiles.uploadedAt));
   }
 
-  async getGoogleSheetsByUser(userId: string): Promise<GoogleSheet[]> {
-    return await db
-      .select()
-      .from(googleSheets)
-      .where(eq(googleSheets.userId, userId))
-      .orderBy(desc(googleSheets.createdAt));
+  async getLeadFileById(id: number): Promise<LeadFile | undefined> {
+    const [file] = await db.select().from(leadFiles).where(eq(leadFiles.id, id));
+    return file;
   }
 
-  async getGoogleSheet(id: number): Promise<GoogleSheet | undefined> {
-    const [sheet] = await db.select().from(googleSheets).where(eq(googleSheets.id, id));
-    return sheet;
+  // Lead Management
+  async createLead(leadData: NewLead): Promise<Lead> {
+    const [lead] = await db.insert(leads).values(leadData).returning();
+    return lead;
   }
 
-  async updateGoogleSheet(id: number, updates: Partial<GoogleSheet>): Promise<GoogleSheet> {
-    const [updated] = await db
-      .update(googleSheets)
-      .set(updates)
-      .where(eq(googleSheets.id, id))
-      .returning();
-    return updated;
+  async createLeads(leadsData: NewLead[]): Promise<Lead[]> {
+    return await db.insert(leads).values(leadsData).returning();
   }
 
-  async deleteGoogleSheet(id: number): Promise<void> {
-    // First, update any campaigns using this sheet to remove the reference
-    await db
-      .update(campaigns)
-      .set({ googleSheetId: null })
-      .where(eq(campaigns.googleSheetId, id));
-    
-    // Then delete the Google Sheet
-    await db.delete(googleSheets).where(eq(googleSheets.id, id));
+  async getLeadsByFile(fileId: number): Promise<Lead[]> {
+    return await db.select().from(leads).where(eq(leads.fileId, fileId));
   }
 
-  // Campaigns
-  async createCampaign(campaign: InsertCampaign): Promise<Campaign> {
-    const [created] = await db.insert(campaigns).values(campaign).returning();
-    return created;
+  async getLeadsByFileWithPagination(fileId: number, offset: number = 0, limit: number = 10): Promise<Lead[]> {
+    return await db.select().from(leads).where(eq(leads.fileId, fileId)).limit(limit).offset(offset);
+  }
+
+  async getLeadCountByFile(fileId: number): Promise<number> {
+    const [result] = await db.select({ count: count() }).from(leads).where(eq(leads.fileId, fileId));
+    return result?.count || 0;
+  }
+
+  // Template Management
+  async createTemplate(templateData: NewTemplate): Promise<Template> {
+    const [template] = await db.insert(templates).values(templateData).returning();
+    return template;
+  }
+
+  async getTemplatesByUser(userId: string): Promise<Template[]> {
+    return await db.select().from(templates).where(eq(templates.userId, userId)).orderBy(desc(templates.createdAt));
+  }
+
+  async getTemplateById(id: number): Promise<Template | undefined> {
+    const [template] = await db.select().from(templates).where(eq(templates.id, id));
+    return template;
+  }
+
+  async updateTemplate(id: number, updates: Partial<Template>): Promise<Template> {
+    const [template] = await db.update(templates).set(updates).where(eq(templates.id, id)).returning();
+    return template;
+  }
+
+  async deleteTemplate(id: number): Promise<void> {
+    await db.delete(templates).where(eq(templates.id, id));
+  }
+
+  // Campaign Management
+  async createCampaign(campaignData: NewCampaign): Promise<Campaign> {
+    const [campaign] = await db.insert(campaigns).values(campaignData).returning();
+    return campaign;
   }
 
   async getCampaignsByUser(userId: string): Promise<Campaign[]> {
-    return await db
-      .select()
-      .from(campaigns)
-      .where(eq(campaigns.userId, userId))
-      .orderBy(desc(campaigns.createdAt));
+    return await db.select().from(campaigns).where(eq(campaigns.userId, userId)).orderBy(desc(campaigns.createdAt));
   }
 
-  async getCampaign(id: number): Promise<Campaign | undefined> {
+  async getCampaignById(id: number): Promise<Campaign | undefined> {
     const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, id));
     return campaign;
   }
 
   async updateCampaign(id: number, updates: Partial<Campaign>): Promise<Campaign> {
-    const [updated] = await db
-      .update(campaigns)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(eq(campaigns.id, id))
-      .returning();
-    return updated;
+    const [campaign] = await db.update(campaigns).set(updates).where(eq(campaigns.id, id)).returning();
+    return campaign;
   }
 
-  async deleteCampaign(id: number): Promise<void> {
-    await db.delete(campaigns).where(eq(campaigns.id, id));
+  // Campaign Lead Management
+  async createCampaignLead(campaignLeadData: NewCampaignLead): Promise<CampaignLead> {
+    const [campaignLead] = await db.insert(campaignLeads).values(campaignLeadData).returning();
+    return campaignLead;
   }
 
-  // Campaign targets
-  async createCampaignTargets(targets: InsertCampaignTarget[]): Promise<CampaignTarget[]> {
-    if (targets.length === 0) return [];
-    return await db.insert(campaignTargets).values(targets).returning();
+  async createCampaignLeads(campaignLeadsData: NewCampaignLead[]): Promise<CampaignLead[]> {
+    return await db.insert(campaignLeads).values(campaignLeadsData).returning();
   }
 
-  async getCampaignTargets(campaignId: number): Promise<CampaignTarget[]> {
-    return await db
-      .select()
-      .from(campaignTargets)
-      .where(eq(campaignTargets.campaignId, campaignId))
-      .orderBy(campaignTargets.id);
+  async getCampaignLeadsByCampaign(campaignId: number): Promise<CampaignLead[]> {
+    return await db.select().from(campaignLeads).where(eq(campaignLeads.campaignId, campaignId));
   }
 
-  // Messages
-  async createMessage(message: InsertMessage): Promise<Message> {
-    const [created] = await db.insert(messages).values(message).returning();
-    return created;
+  async updateCampaignLead(id: number, updates: Partial<CampaignLead>): Promise<CampaignLead> {
+    const [campaignLead] = await db.update(campaignLeads).set(updates).where(eq(campaignLeads.id, id)).returning();
+    return campaignLead;
   }
 
-  async getMessagesByCampaign(campaignId: number): Promise<Message[]> {
-    return await db
-      .select()
-      .from(messages)
-      .where(eq(messages.campaignId, campaignId))
-      .orderBy(desc(messages.createdAt));
-  }
-
-  async updateMessage(id: number, updates: Partial<Message>): Promise<Message> {
-    const [updated] = await db
-      .update(messages)
-      .set(updates)
-      .where(eq(messages.id, id))
-      .returning();
-    return updated;
-  }
-
-  // Proxies
-  async createProxy(proxy: InsertProxy): Promise<Proxy> {
-    const [created] = await db.insert(proxies).values(proxy).returning();
-    return created;
-  }
-
-  async getProxiesByUser(userId: string): Promise<Proxy[]> {
-    return await db
-      .select()
-      .from(proxies)
-      .where(eq(proxies.userId, userId))
-      .orderBy(desc(proxies.createdAt));
-  }
-
-  async getActiveProxiesByUser(userId: string): Promise<Proxy[]> {
-    return await db
-      .select()
-      .from(proxies)
-      .where(and(eq(proxies.userId, userId), eq(proxies.isActive, true)))
-      .orderBy(desc(proxies.createdAt));
-  }
-
-  async updateProxy(id: number, updates: Partial<Proxy>): Promise<Proxy> {
-    const [updated] = await db
-      .update(proxies)
-      .set(updates)
-      .where(eq(proxies.id, id))
-      .returning();
-    return updated;
-  }
-
-  async deleteProxy(id: number): Promise<void> {
-    await db.delete(proxies).where(eq(proxies.id, id));
-  }
-
-  // Activity logs
-  async createActivityLog(log: InsertActivityLog): Promise<ActivityLog> {
-    const [created] = await db.insert(activityLogs).values(log).returning();
-    return created;
-  }
-
-  async getActivityLogsByUser(userId: string, limit = 50): Promise<ActivityLog[]> {
-    return await db
-      .select()
-      .from(activityLogs)
-      .where(eq(activityLogs.userId, userId))
-      .orderBy(desc(activityLogs.createdAt))
-      .limit(limit);
-  }
-
-  async createReply(reply: InsertReply): Promise<Reply> {
-    const [newReply] = await db.insert(replies).values(reply).returning();
-    return newReply;
-  }
-
-  async getRepliesByMessage(messageId: number): Promise<Reply[]> {
-    return await db.select().from(replies).where(eq(replies.messageId, messageId));
-  }
-
-  async getRepliesByCampaign(campaignId: number): Promise<Reply[]> {
-    return await db.select()
-      .from(replies)
-      .innerJoin(messages, eq(messages.id, replies.messageId))
-      .where(eq(messages.campaignId, campaignId));
-  }
-
-  async getMessagesByInstagramId(instagramMessageId: string): Promise<Message[]> {
-    return await db.select().from(messages)
-      .where(eq(messages.instagramMessageId, instagramMessageId));
-  }
-
-  // Analytics
-  async getUserStats(userId: string): Promise<{
-    totalMessagesSent: number;
-    activeCampaigns: number;
-    totalRepliesReceived: number;
+  // Campaign Statistics
+  async getCampaignStats(campaignId: number): Promise<{
+    total: number;
+    pending: number;
+    sent: number;
+    delivered: number;
+    failed: number;
   }> {
-    // Get total messages sent
-    const messageStats = await db
-      .select({ count: count() })
-      .from(messages)
-      .innerJoin(campaigns, eq(campaigns.id, messages.campaignId))
-      .where(and(eq(campaigns.userId, userId), eq(messages.status, 'sent')));
+    const results = await db
+      .select({
+        status: campaignLeads.status,
+        count: count(),
+      })
+      .from(campaignLeads)
+      .where(eq(campaignLeads.campaignId, campaignId))
+      .groupBy(campaignLeads.status);
 
-    // Get active campaigns
-    const activeCampaignStats = await db
-      .select({ count: count() })
-      .from(campaigns)
-      .where(and(eq(campaigns.userId, userId), eq(campaigns.status, 'running')));
-
-    // Get total replies received
-    const replyStats = await db
-      .select({ count: count() })
-      .from(replies)
-      .innerJoin(messages, eq(messages.id, replies.messageId))
-      .innerJoin(campaigns, eq(campaigns.id, messages.campaignId))
-      .where(eq(campaigns.userId, userId));
-
-    return {
-      totalMessagesSent: messageStats[0]?.count || 0,
-      activeCampaigns: activeCampaignStats[0]?.count || 0,
-      totalRepliesReceived: replyStats[0]?.count || 0,
+    const stats = {
+      total: 0,
+      pending: 0,
+      sent: 0,
+      delivered: 0,
+      failed: 0,
     };
+
+    results.forEach((result) => {
+      const count = Number(result.count);
+      stats.total += count;
+      stats[result.status as keyof typeof stats] = count;
+    });
+
+    return stats;
+  }
+
+  // Message Generation
+  async generateMessagesForCampaign(campaignId: number): Promise<void> {
+    const campaign = await this.getCampaignById(campaignId);
+    if (!campaign) throw new Error("Campaign not found");
+
+         const template = await this.getTemplateById(campaign.templateId || 0);
+    if (!template) throw new Error("Template not found");
+
+         const leads = await this.getLeadsByFile(campaign.leadFileId || 0);
+    const accounts = await this.getInstagramAccountsByUser(campaign.userId || '');
+
+    if (accounts.length === 0) throw new Error("No Instagram accounts available");
+
+    const campaignLeads: NewCampaignLead[] = [];
+    let accountIndex = 0;
+
+    for (const lead of leads) {
+             // Prepare variables for message generation
+       const variables: Record<string, string> = {
+         name: lead.name || "",
+         profile_url: lead.profileUrl,
+         ...(lead.customFields as Record<string, string>),
+       };
+
+      // Generate message content
+      const messageContent = generateMessage(template.content, variables);
+
+      // Select account (round-robin)
+      const account = accounts[accountIndex % accounts.length];
+
+      campaignLeads.push({
+        campaignId: campaign.id,
+        leadId: lead.id,
+        accountId: account.id,
+        messageContent,
+        status: "pending",
+      });
+
+      accountIndex++;
+    }
+
+    // Create campaign leads
+    await this.createCampaignLeads(campaignLeads);
+
+    // Update campaign with total targets
+    await this.updateCampaign(campaign.id, {
+      totalTargets: leads.length,
+      status: "scheduled",
+    });
+  }
+
+  // Account Health Management
+  async updateAccountHealth(accountId: number, healthScore: number): Promise<void> {
+    await this.updateInstagramAccount(accountId, { healthScore });
+  }
+
+  async getHealthyAccounts(userId: string, minHealthScore: number = 50): Promise<InstagramAccount[]> {
+    return await db
+      .select()
+      .from(instagramAccounts)
+      .where(and(eq(instagramAccounts.userId, userId), gte(instagramAccounts.healthScore, minHealthScore)));
+  }
+
+  // Daily Limits Management
+  async getAccountMessagesSentToday(accountId: number): Promise<number> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [result] = await db
+      .select({ count: count() })
+      .from(campaignLeads)
+      .where(
+        and(
+          eq(campaignLeads.accountId, accountId),
+          gte(campaignLeads.sentAt, today)
+        )
+      );
+
+    return result?.count || 0;
+  }
+
+  async getUserMessagesSentToday(userId: string): Promise<number> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [result] = await db
+      .select({ count: count() })
+      .from(campaignLeads)
+      .innerJoin(campaigns, eq(campaignLeads.campaignId, campaigns.id))
+      .where(
+        and(
+          eq(campaigns.userId, userId),
+          gte(campaignLeads.sentAt, today)
+        )
+      );
+
+    return result?.count || 0;
+  }
+
+  // Search and Filter
+  async searchTemplates(userId: string, keyword: string): Promise<Template[]> {
+    return await db
+      .select()
+      .from(templates)
+      .where(and(eq(templates.userId, userId), like(templates.name, `%${keyword}%`)))
+      .orderBy(desc(templates.createdAt));
+  }
+
+  async searchCampaigns(userId: string, keyword: string): Promise<Campaign[]> {
+    return await db
+      .select()
+      .from(campaigns)
+      .where(and(eq(campaigns.userId, userId), like(campaigns.name, `%${keyword}%`)))
+      .orderBy(desc(campaigns.createdAt));
+  }
+
+  // Cleanup and Maintenance
+  async deleteLeadFile(fileId: number): Promise<void> {
+    // This will cascade delete all leads associated with the file
+    await db.delete(leadFiles).where(eq(leadFiles.id, fileId));
+  }
+
+  async deleteCampaign(campaignId: number): Promise<void> {
+    // This will cascade delete all campaign leads
+    await db.delete(campaigns).where(eq(campaigns.id, campaignId));
   }
 }
 
+// Use proper database storage
 export const storage = new DatabaseStorage();

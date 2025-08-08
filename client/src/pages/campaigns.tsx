@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, Play, Pause, Eye, Edit, Copy, Trash2, Terminal, ChevronUp, ChevronDown } from "lucide-react";
-import { SiInstagram, SiFacebook } from "react-icons/si";
 import NewCampaignModal from "@/components/modals/new-campaign-modal";
 
 export default function Campaigns() {
@@ -47,7 +46,6 @@ export default function Campaigns() {
         const runningCampaign = campaignsData.find((c: any) => c.status === 'running');
         
         if (runningCampaign) {
-          // Simple status update
           addLog(`Campaign "${runningCampaign.name}" is processing Instagram profiles...`);
         }
       } catch (error) {
@@ -207,17 +205,6 @@ export default function Campaigns() {
     }
   };
 
-  const getPlatformIcon = (platform: string) => {
-    switch (platform) {
-      case 'instagram':
-        return <SiInstagram className="w-4 h-4 text-pink-500" />;
-      case 'facebook':
-        return <SiFacebook className="w-4 h-4 text-blue-500" />;
-      default:
-        return null;
-    }
-  };
-
   const getProgressPercentage = (messagesSent: number, totalTargets: number) => {
     if (totalTargets === 0) return 0;
     return Math.round((messagesSent / totalTargets) * 100);
@@ -259,7 +246,7 @@ export default function Campaigns() {
 
       {/* Main Content */}
       <main className="flex-1 p-6 overflow-auto">
-        {!campaigns || campaigns.length === 0 ? (
+        {!Array.isArray(campaigns) || campaigns.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
@@ -280,16 +267,15 @@ export default function Campaigns() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {campaigns.map((campaign: any) => (
+            {(campaigns || []).map((campaign: any) => (
               <Card key={campaign.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <CardTitle className="text-lg">{campaign.name}</CardTitle>
                       <div className="flex items-center space-x-2 mt-1">
-                        {getPlatformIcon(campaign.platform)}
                         <span className="text-sm text-slate-600 capitalize">
-                          {campaign.platform}
+                          Instagram
                         </span>
                       </div>
                     </div>
@@ -382,7 +368,7 @@ export default function Campaigns() {
                           size="sm" 
                           variant="ghost"
                           onClick={() => {
-                            navigator.clipboard.writeText(`Campaign: ${campaign.name}\nPlatform: ${campaign.platform}\nProgress: ${campaign.messagesSent}/${campaign.totalTargets}`);
+                            navigator.clipboard.writeText(`Campaign: ${campaign.name}\nProgress: ${campaign.messagesSent}/${campaign.totalTargets}`);
                             toast({ title: "Copied", description: "Campaign details copied to clipboard" });
                           }}
                           title="Copy details"
@@ -413,7 +399,7 @@ export default function Campaigns() {
       </main>
 
       {/* Processing Status */}
-      {campaigns && campaigns.some((c: any) => c.status === 'running') && (
+      {Array.isArray(campaigns) && campaigns.some((c: any) => c.status === 'running') && (
         <div className="border-t border-slate-200 bg-blue-50 px-6 py-3">
           <div className="flex items-center space-x-3">
             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>

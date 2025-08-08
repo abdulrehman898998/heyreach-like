@@ -10,7 +10,9 @@ interface LiveActivityProps {
 }
 
 export default function LiveActivity({ campaigns }: LiveActivityProps) {
-  const runningCampaigns = campaigns?.filter(c => c.status === 'running') || [];
+  // Ensure campaigns is an array before using filter
+  const campaignsArray = Array.isArray(campaigns) ? campaigns : [];
+  const runningCampaigns = campaignsArray.filter(c => c.status === 'running') || [];
 
   const getPlatformIcon = (platform: string) => {
     switch (platform) {

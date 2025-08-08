@@ -1,29 +1,8 @@
 # Copy this to .env file and fill in your actual values
 
 # Database Configuration
-# Local PostgreSQL:
-DATABASE_URL=postgresql://socialbot_user:your_password@localhost:5432/socialbot_pro
-# AWS RDS PostgreSQL:
-# DATABASE_URL=postgresql://socialbot_user:your_password@your-rds-endpoint.amazonaws.com:5432/socialbot_pro
-
-# Meta/Facebook App Credentials (for Instagram webhooks)
-# Get these from https://developers.facebook.com/
-META_APP_ID=your_meta_app_id_here
-META_APP_SECRET=your_meta_app_secret_here
-
-# Google OAuth Credentials (for Google Sheets API)
-# Get these from https://console.cloud.google.com/
-GOOGLE_CLIENT_ID=your_google_client_id_here
-GOOGLE_CLIENT_SECRET=your_google_client_secret_here
-
-# Session Secret (generate a random string)
-SESSION_SECRET=your_random_session_secret_here
+# Local PostgreSQL with Docker:
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/instagram_automation
 
 # Environment
 NODE_ENV=development
-
-# Optional: Replit Domain (leave empty for local)
-# REPLIT_DEV_DOMAIN=
-
-# Webhook Verification Token (can be any string)
-INSTAGRAM_WEBHOOK_VERIFY_TOKEN=your_webhook_verify_token

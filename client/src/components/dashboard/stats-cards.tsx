@@ -10,8 +10,10 @@ interface StatsCardsProps {
 }
 
 export default function StatsCards({ stats, campaigns }: StatsCardsProps) {
-  const completedCampaigns = campaigns?.filter(c => c.status === 'completed').length || 0;
-  const totalCampaigns = campaigns?.length || 0;
+  // Ensure campaigns is an array before using filter
+  const campaignsArray = Array.isArray(campaigns) ? campaigns : [];
+  const completedCampaigns = campaignsArray.filter(c => c.status === 'completed').length || 0;
+  const totalCampaigns = campaignsArray.length || 0;
   
   const cards = [
     {

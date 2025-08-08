@@ -10,6 +10,9 @@ interface CampaignTableProps {
 }
 
 export default function CampaignTable({ campaigns }: CampaignTableProps) {
+  // Ensure campaigns is an array before using map
+  const campaignsArray = Array.isArray(campaigns) ? campaigns : [];
+
   const getPlatformIcon = (platform: string) => {
     switch (platform) {
       case 'instagram':
@@ -59,7 +62,7 @@ export default function CampaignTable({ campaigns }: CampaignTableProps) {
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        {!campaigns || campaigns.length === 0 ? (
+        {campaignsArray.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-slate-500">No campaigns to display</p>
           </div>
@@ -92,7 +95,7 @@ export default function CampaignTable({ campaigns }: CampaignTableProps) {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-200">
-                {campaigns.map((campaign) => (
+                {campaignsArray.map((campaign) => (
                   <tr key={campaign.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>

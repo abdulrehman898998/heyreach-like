@@ -72,10 +72,7 @@ export default function SettingsPage() {
                 <div>
                   <label className="text-sm font-medium text-slate-700">Name</label>
                   <div className="mt-1 text-sm text-slate-600">
-                    {user?.firstName || user?.lastName 
-                      ? `${user?.firstName || ""} ${user?.lastName || ""}`.trim()
-                      : "Not provided"
-                    }
+                    {user?.email || "Not provided"}
                   </div>
                 </div>
               </div>
@@ -179,7 +176,7 @@ export default function SettingsPage() {
                 <div>
                   <label className="text-sm font-medium text-slate-700">Account Created</label>
                   <div className="mt-1 text-sm text-slate-600">
-                    {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "Unknown"}
+                    {"Unknown"}
                   </div>
                 </div>
               </div>

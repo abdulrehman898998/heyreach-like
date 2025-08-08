@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Bot, BarChart3, Play, Users, Sheet, Wifi, Settings, LogOut } from "lucide-react";
+import { Bot, BarChart3, Play, Users, Settings, LogOut, MessageSquare, Search } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -11,9 +11,9 @@ export default function Sidebar() {
   const navigation = [
     { name: "Dashboard", href: "/", icon: BarChart3 },
     { name: "Campaigns", href: "/campaigns", icon: Play },
+    
+    { name: "Leads", href: "/leads", icon: Search },
     { name: "Accounts", href: "/accounts", icon: Users },
-    { name: "Google Sheets", href: "/google-sheets", icon: Sheet },
-    { name: "Proxies", href: "/proxies", icon: Wifi },
     { name: "Analytics", href: "/analytics", icon: BarChart3 },
     { name: "Settings", href: "/settings", icon: Settings },
   ];
@@ -64,17 +64,14 @@ export default function Sidebar() {
       <div className="p-4 border-t border-slate-200">
         <div className="flex items-center space-x-3 mb-3">
           <Avatar className="w-8 h-8">
-            <AvatarImage src={user?.profileImageUrl} />
+            <AvatarImage src={undefined} />
             <AvatarFallback className="bg-slate-300">
-              {user?.firstName?.[0] || user?.email?.[0] || "U"}
+              {user?.email?.[0] || "U"}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-slate-900 truncate">
-              {user?.firstName && user?.lastName 
-                ? `${user.firstName} ${user.lastName}`
-                : user?.email || "User"
-              }
+              {user?.email || "User"}
             </p>
             <p className="text-xs text-slate-500 truncate">
               {user?.email || ""}

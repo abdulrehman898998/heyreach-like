@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,8 +13,6 @@ import { z } from "zod";
 
 const createCampaignSchema = z.object({
   name: z.string().min(1, "Campaign name is required"),
-  platform: z.enum(["instagram", "facebook"]),
-  googleSheetId: z.number().min(1, "Please select a Google Sheet"),
   messagesPerAccount: z.number().min(1, "Must be at least 1").max(1000, "Cannot exceed 1000"),
   delayBetweenMessages: z.number().min(5, "Minimum delay is 5 seconds").max(300, "Maximum delay is 300 seconds"),
 });
@@ -31,19 +28,11 @@ export default function NewCampaignModal({ open, onOpenChange }: NewCampaignModa
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch Google Sheets
-  const { data: googleSheets } = useQuery({
-    queryKey: ["/api/google-sheets"],
-    enabled: open,
-  });
-
   // Form
   const form = useForm<CreateCampaignForm>({
     resolver: zodResolver(createCampaignSchema),
     defaultValues: {
       name: "",
-      platform: "instagram",
-      googleSheetId: undefined,
       messagesPerAccount: 50,
       delayBetweenMessages: 30,
     },
@@ -52,16 +41,35 @@ export default function NewCampaignModal({ open, onOpenChange }: NewCampaignModa
   // Create campaign mutation
   const createCampaignMutation = useMutation({
     mutationFn: async (data: CreateCampaignForm) => {
-      await apiRequest("POST", "/api/campaigns", data);
+      const response = await apiRequest("POST", "/api/campaigns", {
+        name: data.name,
+        scheduling: {
+          maxMessagesPerDay: data.messagesPerAccount,
+          delayBetweenMessages: data.delayBetweenMessages,
+        },
+        startNow: false,
+      });
+      return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
         title: "Campaign Created",
-        description: "Your campaign has been created successfully",
+        description: "Redirecting to campaign setup...",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       onOpenChange(false);
       form.reset();
+      
+      // Redirect to the full campaign creation page
+      setTimeout(() => {
+        // Check if data has the expected structure
+        if (data && data.campaign && data.campaign.id) {
+          window.location.href = `/campaigns/create?id=${data.campaign.id}`;
+        } else {
+          // Fallback: redirect without ID, the page can handle it
+          window.location.href = `/campaigns/create`;
+        }
+      }, 1000);
     },
     onError: (error) => {
       if (isUnauthorizedError(error as Error)) {
@@ -93,7 +101,7 @@ export default function NewCampaignModal({ open, onOpenChange }: NewCampaignModa
         <DialogHeader>
           <DialogTitle>Create New Campaign</DialogTitle>
           <p className="text-sm text-slate-600 mt-1">
-            Create an automated campaign to send personalized messages to your target profiles using data from Google Sheets.
+            Name your campaign and set delivery limits. You will map columns and compose the message in the next step.
           </p>
         </DialogHeader>
         <Form {...form}>
@@ -112,68 +120,7 @@ export default function NewCampaignModal({ open, onOpenChange }: NewCampaignModa
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="platform"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Platform</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select platform" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="instagram">Instagram</SelectItem>
-                        <SelectItem value="facebook">Facebook</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
-
-            <FormField
-              control={form.control}
-              name="googleSheetId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Google Sheet Data Source</FormLabel>
-                  <Select 
-                    onValueChange={(value) => field.onChange(parseInt(value))} 
-                    value={field.value?.toString() || ""}
-                    key={field.value} // Force re-render when value changes
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder={googleSheets?.length > 0 ? "Choose your Google Sheet" : "No Google Sheets connected"} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {googleSheets?.length > 0 ? (
-                        googleSheets.map((sheet: any) => (
-                          <SelectItem key={sheet.id} value={sheet.id.toString()}>
-                            {sheet.name}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="no-sheets" disabled>
-                          Connect a Google Sheet first
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                  {googleSheets?.length === 0 && (
-                    <p className="text-sm text-amber-600">
-                      Go to Google Sheets page to connect your data source first.
-                    </p>
-                  )}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField

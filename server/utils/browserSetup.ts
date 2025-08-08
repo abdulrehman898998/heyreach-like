@@ -11,7 +11,7 @@ export class BrowserSetup {
       await browser.close();
       return { available: true, message: 'Browser automation is ready' };
     } catch (error) {
-      if (error.message.includes('Executable doesn\'t exist')) {
+      if ((error as Error).message.includes('Executable doesn\'t exist')) {
         return { 
           available: false, 
           message: 'Browser not installed. Run: npx playwright install chromium' 
@@ -19,7 +19,7 @@ export class BrowserSetup {
       }
       return { 
         available: false, 
-        message: `Browser error: ${error.message}` 
+        message: `Browser error: ${(error as Error).message}` 
       };
     }
   }

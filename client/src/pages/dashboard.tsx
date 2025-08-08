@@ -142,21 +142,21 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className="flex-1 p-6 overflow-auto">
         {/* Overview Stats */}
-        <StatsCards stats={stats} campaigns={campaigns} />
+        <StatsCards stats={stats as any} campaigns={campaigns as any} />
 
         {/* Campaign Performance & Real-time Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Current Campaign Activity */}
           <div className="lg:col-span-2">
-            <LiveActivity campaigns={campaigns} />
+            <LiveActivity campaigns={campaigns as any} />
           </div>
 
           {/* Recent Activity Feed */}
-          <RecentActivity activityLogs={activityLogs} />
+          <RecentActivity activityLogs={activityLogs as any} />
         </div>
 
         {/* Campaign Management Table */}
-        <CampaignTable campaigns={campaigns} />
+        <CampaignTable campaigns={campaigns as any} />
 
         {/* Reply Tracking Information Panel */}
         <Card className="mt-8 border-blue-200 bg-blue-50">

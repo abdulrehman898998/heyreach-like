@@ -1,189 +1,125 @@
-import {
-  pgTable,
-  text,
-  varchar,
-  timestamp,
-  jsonb,
-  index,
-  serial,
-  integer,
-  boolean,
-  pgEnum,
-} from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
+import { pgTable, serial, text, timestamp, integer, boolean, jsonb, uuid } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
-// Session storage table (mandatory for Replit Auth)
-export const sessions = pgTable(
-  "sessions",
-  {
-    sid: varchar("sid").primaryKey(),
-    sess: jsonb("sess").notNull(),
-    expire: timestamp("expire").notNull(),
-  },
-  (table) => [index("IDX_session_expire").on(table.expire)],
-);
-
-// User storage table (mandatory for Replit Auth)
+// Users table
 export const users = pgTable("users", {
-  id: varchar("id").primaryKey().notNull(),
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
+  id: uuid("id").primaryKey().defaultRandom(),
+  email: text("email").notNull().unique(),
+  name: text("name").notNull(),
+  password: text("password").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Platform enum
-export const platformEnum = pgEnum("platform", ["instagram", "facebook"]);
-
-// Campaign status enum
-export const campaignStatusEnum = pgEnum("campaign_status", [
-  "draft",
-  "running",
-  "paused",
-  "completed",
-  "failed",
-]);
-
-// Message status enum
-export const messageStatusEnum = pgEnum("message_status", [
-  "pending",
-  "sent",
-  "failed",
-]);
-
-// Social media accounts
-export const socialAccounts = pgTable("social_accounts", {
+// Instagram accounts table
+export const instagramAccounts = pgTable("instagram_accounts", {
   id: serial("id").primaryKey(),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  platform: platformEnum("platform").notNull(),
-  username: varchar("username").notNull(),
-  password: text("password").notNull(), // encrypted
-  twofa: text("twofa"), // 2FA secret if available
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+  username: text("username").notNull(),
+  password: text("password").notNull(),
+  healthScore: integer("health_score").default(100),
   isActive: boolean("is_active").default(true),
   lastUsed: timestamp("last_used"),
-  // Instagram Business API connection for webhook subscriptions
-  instagramBusinessId: varchar("instagram_business_id"), // Their Instagram Business account ID
-  pageAccessToken: text("page_access_token"), // Their page access token for webhooks
-  businessId: varchar("business_id"), // Business Manager ID for webhook recipient matching
-  webhookConnected: boolean("webhook_connected").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// Google Sheets configurations
-export const googleSheets = pgTable("google_sheets", {
-  id: serial("id").primaryKey(),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  name: varchar("name").notNull(),
-  sheetUrl: text("sheet_url").notNull(),
-  accessToken: text("access_token"), // OAuth token
-  refreshToken: text("refresh_token"),
-  range: varchar("range").default("A:Z"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// Campaigns
-export const campaigns = pgTable("campaigns", {
-  id: serial("id").primaryKey(),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  name: varchar("name").notNull(),
-  platform: platformEnum("platform").notNull(),
-  status: campaignStatusEnum("status").default("draft"),
-  googleSheetId: integer("google_sheet_id").references(() => googleSheets.id),
-  messagesPerAccount: integer("messages_per_account").default(50),
-  delayBetweenMessages: integer("delay_between_messages").default(30), // seconds
-  totalTargets: integer("total_targets").default(0),
-  messagesSent: integer("messages_sent").default(0),
-  startedAt: timestamp("started_at"),
-  completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Campaign targets (from Google Sheets)
-export const campaignTargets = pgTable("campaign_targets", {
+// Lead files table (CSV uploads)
+export const leadFiles = pgTable("lead_files", {
   id: serial("id").primaryKey(),
-  campaignId: integer("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+  filename: text("filename").notNull(),
+  totalRows: integer("total_rows").notNull(),
+  columnMapping: jsonb("column_mapping").notNull(), // { profileUrl: "column1", name: "column2", ... }
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+});
+
+// Individual leads from uploaded files
+export const leads = pgTable("leads", {
+  id: serial("id").primaryKey(),
+  fileId: integer("file_id").references(() => leadFiles.id, { onDelete: "cascade" }),
   profileUrl: text("profile_url").notNull(),
-  customMessage: text("custom_message"),
-  processed: boolean("processed").default(false),
+  name: text("name"),
+  customFields: jsonb("custom_fields").default("{}"), // { column3: "value", column4: "value" }
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Messages sent
-export const messages = pgTable("messages", {
+// Message templates table
+export const templates = pgTable("templates", {
   id: serial("id").primaryKey(),
-  campaignId: integer("campaign_id").notNull().references(() => campaigns.id, { onDelete: "cascade" }),
-  socialAccountId: integer("social_account_id").notNull().references(() => socialAccounts.id),
-  targetId: integer("target_id").notNull().references(() => campaignTargets.id),
-  content: text("content").notNull(),
-  status: messageStatusEnum("status").default("pending"),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  content: text("content").notNull(), // "{HI | HEY | HELLO} {{name}}, loved your post!"
+  variables: text("variables").array(), // ["name", "profile_url"]
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Campaigns table
+export const campaigns = pgTable("campaigns", {
+  id: serial("id").primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  templateId: integer("template_id").references(() => templates.id),
+  leadFileId: integer("lead_file_id").references(() => leadFiles.id),
+  status: text("status").default("draft"), // draft, scheduled, running, paused, completed, failed
+  scheduling: jsonb("scheduling").notNull(), // { startTime, maxMessagesPerDay, delayBetweenMessages }
+  totalTargets: integer("total_targets").default(0),
+  sentCount: integer("sent_count").default(0),
+  failedCount: integer("failed_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Campaign execution tracking
+export const campaignLeads = pgTable("campaign_leads", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id").references(() => campaigns.id, { onDelete: "cascade" }),
+  leadId: integer("lead_id").references(() => leads.id),
+  accountId: integer("account_id").references(() => instagramAccounts.id),
+  messageContent: text("message_content").notNull(),
+  status: text("status").default("pending"), // pending, sent, delivered, failed
   sentAt: timestamp("sent_at"),
   errorMessage: text("error_message"),
-  instagramMessageId: text("instagram_message_id"), // Store Instagram's message ID for reply tracking
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// Customer replies to our messages
-export const replies = pgTable("replies", {
-  id: serial("id").primaryKey(),
-  messageId: integer("message_id").notNull().references(() => messages.id, { onDelete: "cascade" }),
-  instagramUserId: text("instagram_user_id").notNull(), // Customer's Instagram-scoped ID
-  content: text("content"),
-  attachments: text("attachments").array(), // Array of attachment URLs
-  replyToMessageId: text("reply_to_message_id"), // Instagram message ID this is replying to
-  receivedAt: timestamp("received_at").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-
-
-// Proxies
-export const proxies = pgTable("proxies", {
-  id: serial("id").primaryKey(),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  name: varchar("name").notNull(),
-  host: varchar("host").notNull(),
-  port: integer("port").notNull(),
-  username: varchar("username"),
-  password: text("password"), // encrypted
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// Activity logs
-export const activityLogs = pgTable("activity_logs", {
-  id: serial("id").primaryKey(),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  action: varchar("action").notNull(),
-  details: text("details"),
-  metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
-  socialAccounts: many(socialAccounts),
+  instagramAccounts: many(instagramAccounts),
+  leadFiles: many(leadFiles),
+  templates: many(templates),
   campaigns: many(campaigns),
-  googleSheets: many(googleSheets),
-  proxies: many(proxies),
-  activityLogs: many(activityLogs),
 }));
 
-export const socialAccountsRelations = relations(socialAccounts, ({ one, many }) => ({
+export const instagramAccountsRelations = relations(instagramAccounts, ({ one, many }) => ({
   user: one(users, {
-    fields: [socialAccounts.userId],
+    fields: [instagramAccounts.userId],
     references: [users.id],
   }),
-  messages: many(messages),
+  campaignLeads: many(campaignLeads),
 }));
 
-export const googleSheetsRelations = relations(googleSheets, ({ one, many }) => ({
+export const leadFilesRelations = relations(leadFiles, ({ one, many }) => ({
   user: one(users, {
-    fields: [googleSheets.userId],
+    fields: [leadFiles.userId],
+    references: [users.id],
+  }),
+  leads: many(leads),
+  campaigns: many(campaigns),
+}));
+
+export const leadsRelations = relations(leads, ({ one, many }) => ({
+  file: one(leadFiles, {
+    fields: [leads.fileId],
+    references: [leadFiles.id],
+  }),
+  campaignLeads: many(campaignLeads),
+}));
+
+export const templatesRelations = relations(templates, ({ one, many }) => ({
+  user: one(users, {
+    fields: [templates.userId],
     references: [users.id],
   }),
   campaigns: many(campaigns),
@@ -194,115 +130,169 @@ export const campaignsRelations = relations(campaigns, ({ one, many }) => ({
     fields: [campaigns.userId],
     references: [users.id],
   }),
-  googleSheet: one(googleSheets, {
-    fields: [campaigns.googleSheetId],
-    references: [googleSheets.id],
+  template: one(templates, {
+    fields: [campaigns.templateId],
+    references: [templates.id],
   }),
-  targets: many(campaignTargets),
-  messages: many(messages),
+  leadFile: one(leadFiles, {
+    fields: [campaigns.leadFileId],
+    references: [leadFiles.id],
+  }),
+  campaignLeads: many(campaignLeads),
 }));
 
-export const campaignTargetsRelations = relations(campaignTargets, ({ one, many }) => ({
+export const campaignLeadsRelations = relations(campaignLeads, ({ one }) => ({
   campaign: one(campaigns, {
-    fields: [campaignTargets.campaignId],
+    fields: [campaignLeads.campaignId],
     references: [campaigns.id],
   }),
-  messages: many(messages),
-}));
-
-export const messagesRelations = relations(messages, ({ one, many }) => ({
-  campaign: one(campaigns, {
-    fields: [messages.campaignId],
-    references: [campaigns.id],
+  lead: one(leads, {
+    fields: [campaignLeads.leadId],
+    references: [leads.id],
   }),
-  socialAccount: one(socialAccounts, {
-    fields: [messages.socialAccountId],
-    references: [socialAccounts.id],
-  }),
-  target: one(campaignTargets, {
-    fields: [messages.targetId],
-    references: [campaignTargets.id],
-  }),
-  replies: many(replies),
-}));
-
-export const repliesRelations = relations(replies, ({ one }) => ({
-  message: one(messages, {
-    fields: [replies.messageId], 
-    references: [messages.id],
+  account: one(instagramAccounts, {
+    fields: [campaignLeads.accountId],
+    references: [instagramAccounts.id],
   }),
 }));
 
-export const proxiesRelations = relations(proxies, ({ one }) => ({
-  user: one(users, {
-    fields: [proxies.userId],
-    references: [users.id],
-  }),
-}));
-
-export const activityLogsRelations = relations(activityLogs, ({ one }) => ({
-  user: one(users, {
-    fields: [activityLogs.userId],
-    references: [users.id],
-  }),
-}));
-
-// Types
-export type UpsertUser = typeof users.$inferInsert;
+// Type definitions for TypeScript
 export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
 
-export type SocialAccount = typeof socialAccounts.$inferSelect;
-export type InsertSocialAccount = typeof socialAccounts.$inferInsert;
+export type InstagramAccount = typeof instagramAccounts.$inferSelect;
+export type NewInstagramAccount = typeof instagramAccounts.$inferInsert;
 
-export type GoogleSheet = typeof googleSheets.$inferSelect;
-export type InsertGoogleSheet = typeof googleSheets.$inferInsert;
+export type LeadFile = typeof leadFiles.$inferSelect;
+export type NewLeadFile = typeof leadFiles.$inferInsert;
+
+export type Lead = typeof leads.$inferSelect;
+export type NewLead = typeof leads.$inferInsert;
+
+export type Template = typeof templates.$inferSelect;
+export type NewTemplate = typeof templates.$inferInsert;
 
 export type Campaign = typeof campaigns.$inferSelect;
-export type InsertCampaign = typeof campaigns.$inferInsert;
+export type NewCampaign = typeof campaigns.$inferInsert;
 
-export type CampaignTarget = typeof campaignTargets.$inferSelect;
-export type InsertCampaignTarget = typeof campaignTargets.$inferInsert;
+export type CampaignLead = typeof campaignLeads.$inferSelect;
+export type NewCampaignLead = typeof campaignLeads.$inferInsert;
 
-export type Message = typeof messages.$inferSelect;
-export type InsertMessage = typeof messages.$inferInsert;
+// Additional types for services
+export type MessageTemplate = Template;
+export type CampaignTarget = Lead;
+export type InsertCampaignTarget = NewLead;
 
+// Column mapping interface
+export interface ColumnMapping {
+  profileUrl: string;
+  name?: string;
+  customFields: Record<string, string>;
+}
 
+// Campaign scheduling interface
+export interface CampaignScheduling {
+  startTime: string;
+  maxMessagesPerDay: number;
+  delayBetweenMessages: number;
+  accountRotation: "round-robin" | "health-based" | "load-balanced";
+}
 
-export type Proxy = typeof proxies.$inferSelect;
-export type InsertProxy = typeof proxies.$inferInsert;
+/**
+ * Extract template variables from content (supports both {{variable}} and /column syntax)
+ */
+export function extractTemplateVariables(content: string): string[] {
+  const variables = new Set<string>();
+  
+  // Extract {{variable}} syntax
+  const variableRegex = /\{\{([^}]+)\}\}/g;
+  let match;
+  while ((match = variableRegex.exec(content)) !== null) {
+    variables.add(match[1].trim());
+  }
+  
+  // Extract /column syntax
+  const slashRegex = /\/([a-zA-Z0-9_]+)/g;
+  while ((match = slashRegex.exec(content)) !== null) {
+    variables.add(match[1].trim());
+  }
+  
+  return Array.from(variables);
+}
 
-export type ActivityLog = typeof activityLogs.$inferSelect;
-export type InsertActivityLog = typeof activityLogs.$inferInsert;
+/**
+ * Generate message from template with spintax and dynamic fields
+ */
+export function generateMessage(template: string, data: Record<string, string>): string {
+  let result = template;
+  
+  // Handle spintax variations {option1 | option2 | option3}
+  const spintaxRegex = /\{([^}]+)\}/g;
+  result = result.replace(spintaxRegex, (match, options) => {
+    const choices = options.split('|').map((opt: string) => opt.trim()).filter((opt: string) => opt);
+    if (choices.length === 0) return match;
+    const randomIndex = Math.floor(Math.random() * choices.length);
+    return choices[randomIndex];
+  });
+  
+  // Handle {{variable}} syntax
+  const variableRegex = /\{\{([^}]+)\}\}/g;
+  result = result.replace(variableRegex, (match, variable) => {
+    const key = variable.trim();
+    return data[key] || match;
+  });
+  
+  // Handle /column syntax
+  const slashRegex = /\/([a-zA-Z0-9_]+)/g;
+  result = result.replace(slashRegex, (match, column) => {
+    const key = column.trim();
+    return data[key] || match;
+  });
+  
+  return result;
+}
 
-export type Reply = typeof replies.$inferSelect;
-export type InsertReply = typeof replies.$inferInsert;
+/**
+ * Parse template to get available dynamic fields
+ */
+export function getAvailableDynamicFields(content: string): string[] {
+  const fields = new Set<string>();
+  
+  // Extract /column syntax
+  const slashRegex = /\/([a-zA-Z0-9_]+)/g;
+  let match;
+  while ((match = slashRegex.exec(content)) !== null) {
+    fields.add(match[1].trim());
+  }
+  
+  return Array.from(fields);
+}
 
-// Schemas
-export const insertSocialAccountSchema = createInsertSchema(socialAccounts).omit({
-  id: true,
-  createdAt: true,
-  lastUsed: true,
-});
-
-export const insertGoogleSheetSchema = createInsertSchema(googleSheets).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertCampaignSchema = createInsertSchema(campaigns).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  messagesSent: true,
-  repliesReceived: true,
-  positiveReplies: true,
-  startedAt: true,
-  completedAt: true,
-});
-
-export const insertProxySchema = createInsertSchema(proxies).omit({
-  id: true,
-  createdAt: true,
-});
+/**
+ * Validate spintax syntax
+ */
+export function validateSpintax(content: string): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  // Check for balanced braces in spintax
+  const spintaxRegex = /\{([^}]+)\}/g;
+  let match;
+  while ((match = spintaxRegex.exec(content)) !== null) {
+    const options = match[1].split('|').map(opt => opt.trim());
+    
+    if (options.length < 2) {
+      errors.push("Spintax must have at least 2 options separated by |");
+    }
+    
+    if (options.some(opt => !opt)) {
+      errors.push("Spintax options cannot be empty");
+    }
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+}
 
 

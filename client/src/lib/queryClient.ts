@@ -7,6 +7,11 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+export function authHeaders(): HeadersInit {
+  const userId = typeof localStorage !== 'undefined' ? localStorage.getItem('userId') : null;
+  return userId ? { 'X-User-ID': userId } : {};
+}
+
 export async function apiRequest(
   method: string,
   url: string,
@@ -14,7 +19,10 @@ export async function apiRequest(
 ): Promise<Response> {
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers: {
+      ...(data ? { "Content-Type": "application/json" } : {}),
+      ...authHeaders(),
+    },
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -31,6 +39,9 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     const res = await fetch(queryKey[0] as string, {
       credentials: "include",
+      headers: {
+        ...authHeaders(),
+      },
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

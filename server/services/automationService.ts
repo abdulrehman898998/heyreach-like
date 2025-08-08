@@ -1,364 +1,117 @@
 import { storage } from "../storage";
-import { googleSheetsService } from "./googleSheetsService";
 import { InstagramBot } from "../automation/instagramBot";
-import { FacebookBot } from "../automation/facebookBot";
-import type { Campaign, SocialAccount, CampaignTarget, Proxy } from "@shared/schema";
+import type { Campaign, InstagramAccount, CampaignLead } from "@shared/schema";
 
 class AutomationService {
   private runningCampaigns = new Map<number, { abort: () => void }>();
-  private broadcastFunction?: (userId: string, data: any) => void;
-  private proxyRotationIndex = new Map<string, number>(); // Track proxy rotation per user
 
-  setBroadcastFunction(fn: (userId: string, data: any) => void) {
-    this.broadcastFunction = fn;
-  }
-
-  private broadcast(userId: string, data: any) {
-    if (this.broadcastFunction) {
-      this.broadcastFunction(userId, data);
-    }
-  }
-
-  private async getNextProxy(userId: string): Promise<Proxy | null> {
-    const proxies = await storage.getActiveProxiesByUser(userId);
-    if (proxies.length === 0) {
-      return null;
-    }
-
-    // Get current rotation index for this user
-    const currentIndex = this.proxyRotationIndex.get(userId) || 0;
-    const proxy = proxies[currentIndex];
-
-    // Update rotation index for next use
-    const nextIndex = (currentIndex + 1) % proxies.length;
-    this.proxyRotationIndex.set(userId, nextIndex);
-
-    return proxy;
-  }
-
-  async startCampaign(campaignId: number, userId: string) {
+  async startCampaign(campaignId: number) {
     if (this.runningCampaigns.has(campaignId)) {
       throw new Error("Campaign is already running");
     }
 
-    const campaign = await storage.getCampaign(campaignId);
+    const campaign = await storage.getCampaignById(campaignId);
     if (!campaign) {
       throw new Error("Campaign not found");
     }
 
-    // Get campaign targets from Google Sheets
-    await this.loadCampaignTargets(campaign);
+    // Update campaign status to running
+    await storage.updateCampaign(campaignId, { status: "running" });
 
-    // Get social accounts for this user and platform
-    const accounts = await storage.getSocialAccountsByUser(userId);
-    const platformAccounts = accounts.filter(
-      acc => acc.platform === campaign.platform && acc.isActive
-    );
+    // Get campaign leads
+    const leads = await storage.getCampaignLeadsByCampaign(campaignId);
+    if (leads.length === 0) {
+      throw new Error("No leads found for campaign");
+    }
 
-    if (platformAccounts.length === 0) {
-      throw new Error(`No active ${campaign.platform} accounts found`);
+    // Get Instagram accounts for this campaign
+    const accounts = await storage.getInstagramAccountsByUser(campaign.userId);
+    const availableAccounts = accounts.filter(acc => acc.isActive && acc.isHealthy);
+    
+    if (availableAccounts.length === 0) {
+      throw new Error("No healthy Instagram accounts available");
     }
 
     // Create abort controller
     const abortController = new AbortController();
     this.runningCampaigns.set(campaignId, {
-      abort: () => abortController.abort(),
+      abort: () => abortController.abort()
     });
 
-    // Start automation in background
-    this.runAutomation(campaign, platformAccounts, userId, abortController.signal)
+    // Start processing leads in background
+    this.processLeads(campaign, leads, availableAccounts, abortController.signal)
       .catch(error => {
         console.error(`Campaign ${campaignId} error:`, error);
-        this.broadcast(userId, {
-          type: 'campaign_error',
-          campaignId,
-          error: error.message,
-        });
       })
       .finally(() => {
         this.runningCampaigns.delete(campaignId);
       });
   }
 
-  pauseCampaign(campaignId: number) {
+  async stopCampaign(campaignId: number) {
     const running = this.runningCampaigns.get(campaignId);
     if (running) {
       running.abort();
-      this.runningCampaigns.delete(campaignId);
+      await storage.updateCampaign(campaignId, { status: "paused" });
     }
   }
 
-  private async loadCampaignTargets(campaign: Campaign) {
-    if (!campaign.googleSheetId) {
-      throw new Error("No Google Sheet configured for campaign");
-    }
-
-    const sheet = await storage.getGoogleSheet(campaign.googleSheetId);
-    if (!sheet) {
-      throw new Error("Google Sheet not found");
-    }
-
-    try {
-      console.log(`Loading targets from Google Sheet: ${sheet.name} (ID: ${sheet.id})`);
-      console.log(`Sheet range: ${sheet.range}`);
-      console.log(`Has access token: ${!!sheet.accessToken}`);
-      console.log(`Has refresh token: ${!!sheet.refreshToken}`);
-      
-      const data = await googleSheetsService.fetchSheetData(sheet);
-      
-      // Convert sheet data to campaign targets
-      // Data structure: { profileUrl: string, message: string, rowNumber: number }
-      const targets = data.map(row => ({
-        campaignId: campaign.id,
-        profileUrl: row.profileUrl,
-        customMessage: row.message,
-        processed: false,
-      })).filter(target => target.profileUrl && target.customMessage);
-
-      if (targets.length === 0) {
-        throw new Error(`No valid targets found in Google Sheet "${sheet.name}". Make sure Column A has Instagram URLs and Column B has messages.`);
-      }
-
-      await storage.createCampaignTargets(targets);
-      
-      // Update campaign with total targets
-      await storage.updateCampaign(campaign.id, {
-        totalTargets: targets.length,
-      });
-
-      console.log(`Successfully loaded ${targets.length} targets for campaign ${campaign.id}`);
-    } catch (error) {
-      console.error("Error loading campaign targets:", error);
-      
-      // Provide more specific error messages
-      if (error.message.includes('access tokens not found')) {
-        throw new Error("Google Sheets authentication expired. Please reconnect your Google Sheet from the Google Sheets page.");
-      } else if (error.message.includes('authentication expired')) {
-        throw new Error("Google Sheets access expired. Please reconnect your Google Sheet.");
-      } else if (error.message.includes('No valid targets found')) {
-        throw error;
-      } else {
-        throw new Error(`Failed to load targets from Google Sheets: ${error.message}`);
-      }
-    }
-  }
-
-  private async runAutomation(
-    campaign: Campaign,
-    accounts: SocialAccount[],
-    userId: string,
-    signal: AbortSignal
+  private async processLeads(
+    campaign: Campaign, 
+    leads: CampaignLead[], 
+    accounts: InstagramAccount[], 
+    abortSignal: AbortSignal
   ) {
-    const targets = await storage.getCampaignTargets(campaign.id);
-    const unprocessedTargets = targets.filter(t => !t.processed);
-
-    if (unprocessedTargets.length === 0) {
-      this.broadcast(userId, {
-        type: 'campaign_completed',
-        campaignId: campaign.id,
-      });
-      await storage.updateCampaign(campaign.id, {
-        status: 'completed',
-        completedAt: new Date(),
-      });
-      return;
-    }
-
-    // Shuffle accounts for load distribution
-    const shuffledAccounts = [...accounts].sort(() => Math.random() - 0.5);
+    let accountIndex = 0;
     
-    let currentAccountIndex = 0;
-    let messagesPerAccountCount = 0;
+    for (const lead of leads) {
+      if (abortSignal.aborted) break;
 
-    for (const target of unprocessedTargets) {
-      if (signal.aborted) {
-        console.log(`Campaign ${campaign.id} aborted`);
-        break;
-      }
-
-      // Switch account if we've reached the limit
-      if (messagesPerAccountCount >= campaign.messagesPerAccount) {
-        currentAccountIndex = (currentAccountIndex + 1) % shuffledAccounts.length;
-        messagesPerAccountCount = 0;
-      }
-
-      const account = shuffledAccounts[currentAccountIndex];
-      
       try {
-        // Fix URL formatting issues - remove double slashes and ensure proper format
-        let cleanUrl = target.profileUrl.trim();
-        if (cleanUrl.includes('instagram.com//')) {
-          cleanUrl = cleanUrl.replace('instagram.com//', 'instagram.com/');
-          console.log(`🔧 Fixed double slash URL: ${cleanUrl}`);
-        }
-        if (!cleanUrl.startsWith('https://')) {
-          if (cleanUrl.startsWith('www.instagram.com/') || cleanUrl.startsWith('instagram.com/')) {
-            cleanUrl = 'https://' + cleanUrl;
-          } else if (cleanUrl.startsWith('@')) {
-            cleanUrl = 'https://www.instagram.com/' + cleanUrl.substring(1);
-          } else if (!cleanUrl.includes('instagram.com')) {
-            cleanUrl = 'https://www.instagram.com/' + cleanUrl;
-          }
-        }
-        
-        // Update the target with clean URL for this processing
-        const cleanTarget = { ...target, profileUrl: cleanUrl };
-        
-        await this.sendMessage(campaign, account, cleanTarget, userId);
-        messagesPerAccountCount++;
+        // Get current account (rotate through accounts)
+        const account = accounts[accountIndex % accounts.length];
+        accountIndex++;
 
-        // Update progress
-        await storage.updateCampaign(campaign.id, {
-          messagesSent: campaign.messagesSent + 1,
+        // Create Instagram bot instance
+        const bot = new InstagramBot(account.username, account.password);
+
+        // Send message
+        await bot.sendMessage(lead.profileUrl, lead.message);
+
+        // Update lead status
+        await storage.updateCampaignLead(lead.id, {
+          status: "sent",
+          sentAt: new Date()
         });
 
-        this.broadcast(userId, {
-          type: 'message_sent',
-          campaignId: campaign.id,
-          target: target.profileUrl,
-          account: account.username,
-        });
-
-        // Delay between messages
-        if (campaign.delayBetweenMessages > 0) {
-          await new Promise(resolve => 
-            setTimeout(resolve, campaign.delayBetweenMessages * 1000)
-          );
-        }
+        // Add delay between messages (rate limiting)
+        await this.delay(5000 + Math.random() * 5000); // 5-10 seconds
 
       } catch (error) {
-        console.error(`Failed to send message to ${target.profileUrl}:`, error);
+        console.error(`Failed to send message to ${lead.profileUrl}:`, error);
         
-        // Provide user-friendly error messages
-        let userFriendlyError = error instanceof Error ? error.message : 'Unknown error';
-        
-        if (userFriendlyError.includes('browserType.launchPersistentContext')) {
-          userFriendlyError = 'Browser setup failed - system issue with Chromium installation';
-        } else if (userFriendlyError.includes('Executable doesn\'t exist')) {
-          userFriendlyError = 'Browser not installed - contact support';
-        } else if (userFriendlyError.includes('2FA required')) {
-          userFriendlyError = 'Account requires 2FA code - add 2FA secret in account settings';
-        } else if (userFriendlyError.includes('Login failed')) {
-          userFriendlyError = 'Login failed - check username/password in account settings';
-        } else if (userFriendlyError.includes('proxy')) {
-          userFriendlyError = 'Proxy connection failed - check proxy settings';
-        }
-        
-        this.broadcast(userId, {
-          type: 'message_failed',
-          campaignId: campaign.id,
-          target: target.profileUrl,
-          error: userFriendlyError,
-        });
-        
-        // Log detailed error for debugging
-        await storage.createActivityLog({
-          userId: campaign.userId,
-          action: 'message_failed',
-          details: `Failed to send to ${target.profileUrl}: ${userFriendlyError}`,
-          campaignId: campaign.id,
+        // Update lead status to failed
+        await storage.updateCampaignLead(lead.id, {
+          status: "failed",
+          error: error instanceof Error ? error.message : "Unknown error"
         });
       }
     }
 
-    // Mark campaign as completed
-    await storage.updateCampaign(campaign.id, {
-      status: 'completed',
-      completedAt: new Date(),
-    });
-
-    this.broadcast(userId, {
-      type: 'campaign_completed',
-      campaignId: campaign.id,
-    });
+    // Update campaign status to completed
+    await storage.updateCampaign(campaign.id, { status: "completed" });
   }
 
-  private async sendMessage(
-    campaign: Campaign,
-    account: SocialAccount,
-    target: CampaignTarget,
-    userId: string
-  ) {
-    // Create message record
-    const message = await storage.createMessage({
-      campaignId: campaign.id,
-      socialAccountId: account.id,
-      targetId: target.id,
-      content: target.customMessage || `Hello! I'd like to connect with you.`,
-      status: 'pending',
-    });
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
 
-    try {
-      // Get next proxy in rotation
-      const proxy = await this.getNextProxy(userId);
-      let proxyConfig = undefined;
+  isRunning(campaignId: number): boolean {
+    return this.runningCampaigns.has(campaignId);
+  }
 
-      if (proxy) {
-        proxyConfig = {
-          server: `${proxy.host}:${proxy.port}`,
-          username: proxy.username || undefined,
-          password: proxy.password || undefined,
-        };
-        console.log(`Using proxy: ${proxy.name} (${proxy.host}:${proxy.port})`);
-      }
-
-      if (campaign.platform === 'instagram') {
-        const bot = new InstagramBot({
-          username: account.username,
-          password: Buffer.from(account.password, 'base64').toString(), // Decrypt
-          twofa: account.twofa || undefined,
-        }, proxyConfig);
-
-        console.log(`🤖 Processing: ${target.profileUrl}`);
-        await bot.initialize();
-        console.log(`📱 Sending message to: ${target.profileUrl}`);
-        await bot.sendDirectMessage(target.profileUrl, message.content);
-        console.log(`✅ Message sent to: ${target.profileUrl}`);
-        await bot.close();
-      } else if (campaign.platform === 'facebook') {
-        const bot = new FacebookBot({
-          username: account.username,
-          password: Buffer.from(account.password, 'base64').toString(), // Decrypt
-          twofa: account.twofa || undefined,
-        }, proxyConfig);
-
-        console.log(`🤖 Processing Facebook: ${target.profileUrl}`);
-        await bot.initialize();
-        console.log(`📱 Sending Facebook message to: ${target.profileUrl}`);
-        await bot.sendDirectMessage(target.profileUrl, message.content);
-        console.log(`✅ Facebook message sent to: ${target.profileUrl}`);
-        await bot.close();
-      }
-
-      // Update message as sent
-      await storage.updateMessage(message.id, {
-        status: 'sent',
-        sentAt: new Date(),
-      });
-
-      // Mark target as processed
-      await storage.updateCampaign(target.campaignId, { processed: true });
-
-      // Update account last used
-      await storage.updateSocialAccount(account.id, {
-        lastUsed: new Date(),
-      });
-
-      // Log activity
-      await storage.createActivityLog({
-        userId,
-        action: 'message_sent',
-        details: `Message sent to ${target.profileUrl} via ${account.username}`,
-        metadata: { campaignId: campaign.id, messageId: message.id },
-      });
-
-    } catch (error) {
-      await storage.updateMessage(message.id, {
-        status: 'failed',
-        errorMessage: error.message,
-      });
-      throw error;
-    }
+  getRunningCampaigns(): number[] {
+    return Array.from(this.runningCampaigns.keys());
   }
 }
 
