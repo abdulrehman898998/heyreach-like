@@ -1,10 +1,12 @@
 import { Route, Switch } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
+import { Layout } from "@/components/Layout";
 import Dashboard from "@/pages/dashboard";
 import LeadsPage from "@/pages/leads";
 import CreateCampaign from "@/pages/campaigns/create";
 import CampaignsPage from "@/pages/campaigns/index";
+import AccountsPage from "@/pages/accounts";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,20 +20,21 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-background">
+      <Layout>
         <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/leads" component={LeadsPage} />
           <Route path="/campaigns" component={CampaignsPage} />
           <Route path="/campaigns/create" component={CreateCampaign} />
+          <Route path="/accounts" component={AccountsPage} />
           <Route>
-            <div className="container mx-auto p-6 text-center">
+            <div className="p-8 text-center">
               <h1 className="text-2xl font-bold mb-4">Page Not Found</h1>
-              <p className="text-muted-foreground">The page you're looking for doesn't exist.</p>
+              <p className="text-gray-600">The page you're looking for doesn't exist.</p>
             </div>
           </Route>
         </Switch>
-      </div>
+      </Layout>
       <Toaster />
     </QueryClientProvider>
   );

@@ -260,6 +260,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Instagram Accounts endpoints
+  app.get("/api/accounts", async (req, res) => {
+    try {
+      // Mock accounts for now - you can implement actual storage later
+      const accounts = [
+        {
+          id: 1,
+          username: "my_automation_account",
+          status: "active",
+          createdAt: new Date().toISOString()
+        }
+      ];
+      res.json({ success: true, accounts });
+    } catch (error) {
+      console.error("Error fetching accounts:", error);
+      res.status(500).json({ success: false, error: "Failed to fetch accounts" });
+    }
+  });
+
+  app.post("/api/accounts", async (req, res) => {
+    try {
+      const { username } = req.body;
+      if (!username) {
+        return res.status(400).json({ success: false, error: "Username is required" });
+      }
+      
+      // Mock account creation
+      const newAccount = {
+        id: Date.now(),
+        username: username.replace('@', ''),
+        status: "active",
+        createdAt: new Date().toISOString()
+      };
+      
+      res.json({ success: true, account: newAccount });
+    } catch (error) {
+      console.error("Error creating account:", error);
+      res.status(500).json({ success: false, error: "Failed to create account" });
+    }
+  });
+
+  app.delete("/api/accounts/:id", async (req, res) => {
+    try {
+      const accountId = parseInt(req.params.id);
+      // Mock account deletion
+      res.json({ success: true, message: "Account deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      res.status(500).json({ success: false, error: "Failed to delete account" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -111,7 +111,7 @@ export default function CreateCampaign() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="p-8 space-y-8">
       <div className="flex items-center gap-4">
         <Button 
           variant="ghost" 
