@@ -8,6 +8,7 @@ import LoginPage from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import CampaignsPage from "@/pages/campaigns";
 import CreateCampaign from "@/pages/campaigns/create";
+import ConfigureCampaign from "@/pages/campaigns/configure";
 import Accounts from "@/pages/accounts";
 import Analytics from "@/pages/analytics";
 import SettingsPage from "@/pages/settings";
@@ -42,6 +43,7 @@ function Router() {
               <Route path="/" component={Dashboard} />
               <Route path="/campaigns" component={CampaignsPage} />
               <Route path="/campaigns/create" component={CreateCampaign} />
+              <Route path="/campaigns/configure" component={ConfigureCampaign} />
               <Route path="/accounts" component={Accounts} />
               <Route path="/analytics" component={Analytics} />
 

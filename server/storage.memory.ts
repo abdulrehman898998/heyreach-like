@@ -128,6 +128,14 @@ export class MemoryStorage {
   async getLeadsByFile(fileId: number): Promise<Lead[]> {
     return this.leads.filter(l => l.fileId === fileId);
   }
+
+  async getLeadsByFileId(fileId: number): Promise<Lead[]> {
+    return this.leads.filter(l => l.fileId === fileId);
+  }
+
+  async getLeadById(leadId: number): Promise<Lead | undefined> {
+    return this.leads.find(l => l.id === leadId);
+  }
   async getLeadsByFileWithPagination(fileId: number, offset = 0, limit = 10): Promise<Lead[]> {
     const all = await this.getLeadsByFile(fileId);
     return all.slice(offset, offset + limit);

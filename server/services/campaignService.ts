@@ -1,4 +1,6 @@
 import { storage } from "../storage";
+import { campaignExecutionEngine } from "../automation/executionEngine";
+import { generateMessage } from "@shared/schema";
 import { type NewCampaign, type Campaign, type CampaignScheduling } from "@shared/schema";
 
 export interface CreateCampaignRequest {
@@ -210,6 +212,91 @@ export class CampaignService {
       ...stats,
       successRate: Math.round(successRate * 100) / 100,
     };
+  }
+
+  /**
+   * Setup campaign leads with dynamic message generation
+   */
+  async setupCampaignLeads(
+    campaignId: number, 
+    profileUrlTemplate: string, 
+    messageTemplate: string, 
+    leadFileId: number
+  ): Promise<void> {
+    // Get leads from the lead file
+    const leads = await storage.getLeadsByFileId(leadFileId);
+    if (leads.length === 0) {
+      throw new Error("No leads found in the selected file");
+    }
+
+    // Create campaign leads with generated messages
+    for (const lead of leads) {
+      // Prepare data for template replacement
+      const leadData = {
+        ...lead.customFields as Record<string, string>,
+        name: lead.name || "there",
+        profileUrl: lead.profileUrl
+      };
+
+      // Generate the actual message using the template
+      const messageContent = generateMessage(messageTemplate, leadData);
+      const profileUrl = generateMessage(profileUrlTemplate, leadData);
+
+      // Create campaign lead
+      await storage.createCampaignLead({
+        campaignId,
+        leadId: lead.id,
+        messageContent,
+        status: "pending"
+      });
+    }
+
+    // Update campaign with lead count
+    await storage.updateCampaign(campaignId, {
+      totalTargets: leads.length
+    });
+  }
+
+  /**
+   * Start campaign execution
+   */
+  async startCampaign(campaignId: number): Promise<void> {
+    const campaign = await storage.getCampaignById(campaignId);
+    if (!campaign) {
+      throw new Error("Campaign not found");
+    }
+
+    if (!["draft", "scheduled"].includes(campaign.status || "")) {
+      throw new Error("Campaign can only be started from draft or scheduled status");
+    }
+
+    // Use the execution engine to start the campaign
+    await campaignExecutionEngine.startCampaign(campaignId);
+  }
+
+  /**
+   * Pause campaign execution
+   */
+  async pauseCampaign(campaignId: number): Promise<void> {
+    await campaignExecutionEngine.stopCampaign(campaignId);
+  }
+
+  /**
+   * Resume campaign execution
+   */
+  async resumeCampaign(campaignId: number): Promise<void> {
+    await campaignExecutionEngine.startCampaign(campaignId);
+  }
+
+  /**
+   * Delete a campaign
+   */
+  async deleteCampaign(campaignId: number): Promise<void> {
+    // Stop the campaign if it's running
+    await campaignExecutionEngine.stopCampaign(campaignId);
+    
+    // Delete from storage
+    await storage.deleteCampaign(campaignId);
   }
 
   /**

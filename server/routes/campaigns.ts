@@ -1,6 +1,7 @@
 import express from "express";
 import { campaignService } from "../services/campaignService";
 import { storage } from "../storage";
+import { campaignExecutionEngine } from "../automation/executionEngine";
 
 const router = express.Router();
 
@@ -102,8 +103,8 @@ router.post("/", async (req, res) => {
     // Create campaign using the service
     const campaign = await campaignService.createCampaign(userId, {
       name,
-      templateId: null, // We'll handle templates separately
-      leadFileId: null, // We'll handle leads separately
+      templateId: undefined, // We'll handle templates separately
+      leadFileId: undefined, // We'll handle leads separately
       scheduling: campaignScheduling
     });
     
@@ -162,6 +163,51 @@ router.get("/:id", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to get campaign",
+    });
+  }
+});
+
+// Configure campaign with leads and template
+router.post("/:id/configure", async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const campaignId = parseInt(req.params.id);
+    const { profileUrl, message, leadFileId } = req.body;
+
+    // Verify campaign belongs to user
+    const campaign = await campaignService.getCampaign(campaignId);
+    if (!campaign || campaign.userId !== userId) {
+      return res.status(404).json({
+        success: false,
+        error: "Campaign not found",
+      });
+    }
+
+    // Validate required fields
+    if (!profileUrl || !message || !leadFileId) {
+      return res.status(400).json({
+        success: false,
+        error: "Profile URL, message, and lead file are required",
+      });
+    }
+
+    // Update campaign with configuration
+    await storage.updateCampaign(campaignId, {
+      leadFileId: parseInt(leadFileId)
+    });
+
+    // Create campaign leads from the selected lead file
+    await campaignService.setupCampaignLeads(campaignId, profileUrl, message, parseInt(leadFileId));
+
+    res.json({
+      success: true,
+      message: "Campaign configured successfully"
+    });
+  } catch (error) {
+    console.error("Error configuring campaign:", error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to configure campaign",
     });
   }
 });

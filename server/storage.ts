@@ -104,6 +104,15 @@ export class DatabaseStorage {
     return await db.select().from(leads).where(eq(leads.fileId, fileId));
   }
 
+  async getLeadsByFileId(fileId: number): Promise<Lead[]> {
+    return await db.select().from(leads).where(eq(leads.fileId, fileId));
+  }
+
+  async getLeadById(leadId: number): Promise<Lead | undefined> {
+    const [lead] = await db.select().from(leads).where(eq(leads.id, leadId));
+    return lead;
+  }
+
   async getLeadsByFileWithPagination(fileId: number, offset: number = 0, limit: number = 10): Promise<Lead[]> {
     return await db.select().from(leads).where(eq(leads.fileId, fileId)).limit(limit).offset(offset);
   }

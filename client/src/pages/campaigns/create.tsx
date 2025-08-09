@@ -221,9 +221,9 @@ export default function CreateCampaign() {
       if (data.success) {
         toast({
           title: "Campaign created!",
-          description: "Your campaign has been created and started.",
+          description: "Your campaign has been created. Now configure it to start automation.",
         });
-        setLocation("/campaigns");
+        setLocation(`/campaigns/configure?id=${data.campaign.id}`);
       } else {
         throw new Error(data.error);
       }
