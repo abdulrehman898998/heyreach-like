@@ -5,18 +5,17 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import LoginPage from "@/pages/login";
-import DashboardNew from "@/pages/dashboard-new";
-import CampaignsPage from "@/pages/campaigns";
-import CreateCampaignProfessional from "@/pages/campaigns/create-professional";
+import DashboardMinimal from "@/pages/dashboard-minimal";
+import CampaignsMinimal from "@/pages/campaigns-minimal";
+import CreateCampaignMinimal from "@/pages/campaigns/create-minimal";
 import ConfigureCampaign from "@/pages/campaigns/configure";
 import Accounts from "@/pages/accounts";
 import Analytics from "@/pages/analytics";
 import SettingsPage from "@/pages/settings";
 
-import LeadsProfessional from "@/pages/leads-professional";
+import LeadsMinimal from "@/pages/leads-minimal";
 import NotFound from "@/pages/not-found";
-import { ProfessionalSidebar } from "@/components/layout/professional-sidebar";
-import { ProfessionalHeader } from "@/components/layout/professional-header";
+import { MinimalSidebar } from "@/components/layout/minimal-sidebar";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -37,23 +36,20 @@ function Router() {
       {!isAuthenticated ? (
         <Route path="/" component={LoginPage} />
       ) : (
-        <div className="flex h-screen bg-background">
-          <ProfessionalSidebar />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <ProfessionalHeader />
-            <main className="flex-1 overflow-y-auto">
-              <Switch>
-                <Route path="/" component={DashboardNew} />
-                <Route path="/campaigns" component={CampaignsPage} />
-                <Route path="/campaigns/create" component={CreateCampaignProfessional} />
-                <Route path="/campaigns/configure" component={ConfigureCampaign} />
-                <Route path="/accounts" component={Accounts} />
-                <Route path="/analytics" component={Analytics} />
-                <Route path="/leads" component={LeadsProfessional} />
-                <Route path="/settings" component={SettingsPage} />
-                <Route component={NotFound} />
-              </Switch>
-            </main>
+        <div className="flex h-screen bg-gray-50">
+          <MinimalSidebar />
+          <div className="flex-1 overflow-y-auto">
+            <Switch>
+              <Route path="/" component={DashboardMinimal} />
+              <Route path="/campaigns" component={CampaignsMinimal} />
+              <Route path="/campaigns/create" component={CreateCampaignMinimal} />
+              <Route path="/campaigns/configure" component={ConfigureCampaign} />
+              <Route path="/accounts" component={Accounts} />
+              <Route path="/analytics" component={Analytics} />
+              <Route path="/leads" component={LeadsMinimal} />
+              <Route path="/settings" component={SettingsPage} />
+              <Route component={NotFound} />
+            </Switch>
           </div>
         </div>
       )}
