@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import LoginPage from "@/pages/login";
-import Dashboard from "@/pages/dashboard";
+import DashboardProfessional from "@/pages/dashboard-professional";
 import CampaignsPage from "@/pages/campaigns";
 import CreateCampaignProfessional from "@/pages/campaigns/create-professional";
 import ConfigureCampaign from "@/pages/campaigns/configure";
@@ -40,7 +40,7 @@ function Router() {
           <Sidebar />
           <div className="flex-1">
             <Switch>
-              <Route path="/" component={Dashboard} />
+              <Route path="/" component={DashboardProfessional} />
               <Route path="/campaigns" component={CampaignsPage} />
               <Route path="/campaigns/create" component={CreateCampaignProfessional} />
               <Route path="/campaigns/configure" component={ConfigureCampaign} />

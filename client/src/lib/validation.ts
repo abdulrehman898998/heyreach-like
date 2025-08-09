@@ -80,3 +80,32 @@ export const rateLimitSchema = z.object({
     .min(30, "Minimum 30 seconds between messages")
     .max(3600, "Maximum 1 hour between messages")
 });
+
+// Lead file validation helpers
+export function validateInstagramProfileUrl(url: string): boolean {
+  const patterns = [
+    /^https?:\/\/(www\.)?instagram\.com\/[a-zA-Z0-9_.]+\/?$/,
+    /^https?:\/\/(www\.)?instagram\.com\/p\/[a-zA-Z0-9_-]+\/?$/,
+    /^@[a-zA-Z0-9_.]+$/,
+    /^[a-zA-Z0-9_.]+$/
+  ];
+  
+  return patterns.some(pattern => pattern.test(url.trim()));
+}
+
+export function normalizeInstagramUrl(url: string): string {
+  const trimmed = url.trim();
+  
+  // Already a full URL
+  if (trimmed.startsWith('http')) {
+    return trimmed;
+  }
+  
+  // Handle @username format
+  if (trimmed.startsWith('@')) {
+    return `https://instagram.com/${trimmed.slice(1)}`;
+  }
+  
+  // Handle plain username
+  return `https://instagram.com/${trimmed}`;
+}

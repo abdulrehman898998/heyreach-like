@@ -4,9 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, FileText, Users, CheckCircle, XCircle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Upload, FileText, Users, CheckCircle, XCircle, AlertCircle, Database, Trash2, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { FormField } from "@/components/ui/form-field";
+import { EmptyState } from "@/components/ui/empty-state";
 import { authHeaders } from "@/lib/queryClient";
+import { validateCsvFile } from "@/lib/validation";
 
 interface LeadFile {
   id: number;
@@ -27,22 +32,30 @@ interface CSVPreview {
 
 export default function LeadsPage() {
   const { toast } = useToast();
+  
+  // State management
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [leadFiles, setLeadFiles] = useState<LeadFile[]>([]);
   const [preview, setPreview] = useState<Record<string, string>[]>([]);
   const [csvPreview, setCsvPreview] = useState<CSVPreview | null>(null);
   const [columnMapping, setColumnMapping] = useState<ColumnMapping | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showColumnMapping, setShowColumnMapping] = useState(false);
+  const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+  const [fileErrors, setFileErrors] = useState<string[]>([]);
 
+  // Enhanced file upload with validation
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.csv')) {
+    // Validate file
+    const validation = validateCsvFile(file);
+    if (!validation.isValid) {
       toast({
-        title: "Invalid file type",
-        description: "Please upload a CSV file",
+        title: "Invalid file",
+        description: validation.error,
         variant: "destructive",
       });
       return;
@@ -54,6 +67,7 @@ export default function LeadsPage() {
     setCsvPreview(null);
     setColumnMapping(null);
     setShowColumnMapping(false);
+    setFileErrors([]);
 
     const formData = new FormData();
     formData.append('file', file);
@@ -70,9 +84,8 @@ export default function LeadsPage() {
       const data = await response.json();
       if (response.ok && data.success) {
         if (data.preview) {
-          // Show column mapping interface
-                     setCsvPreview({
-             availableColumns: data.availableColumns || [],
+          setCsvPreview({
+            availableColumns: data.availableColumns || [],
              preview: Array.isArray(data.preview) ? data.preview : [],
              totalRows: data.totalRows || 0,
            });
