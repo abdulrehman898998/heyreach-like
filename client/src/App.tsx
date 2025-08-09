@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import LoginPage from "@/pages/login";
-import DashboardProfessional from "@/pages/dashboard-professional";
+import DashboardNew from "@/pages/dashboard-new";
 import CampaignsPage from "@/pages/campaigns";
 import CreateCampaignProfessional from "@/pages/campaigns/create-professional";
 import ConfigureCampaign from "@/pages/campaigns/configure";
@@ -13,9 +13,10 @@ import Accounts from "@/pages/accounts";
 import Analytics from "@/pages/analytics";
 import SettingsPage from "@/pages/settings";
 
-import LeadsPage from "@/pages/leads";
+import LeadsProfessional from "@/pages/leads-professional";
 import NotFound from "@/pages/not-found";
-import Sidebar from "@/components/layout/sidebar";
+import { ProfessionalSidebar } from "@/components/layout/professional-sidebar";
+import { ProfessionalHeader } from "@/components/layout/professional-header";
 
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -36,21 +37,23 @@ function Router() {
       {!isAuthenticated ? (
         <Route path="/" component={LoginPage} />
       ) : (
-        <div className="flex h-screen bg-slate-50">
-          <Sidebar />
-          <div className="flex-1">
-            <Switch>
-              <Route path="/" component={DashboardProfessional} />
-              <Route path="/campaigns" component={CampaignsPage} />
-              <Route path="/campaigns/create" component={CreateCampaignProfessional} />
-              <Route path="/campaigns/configure" component={ConfigureCampaign} />
-              <Route path="/accounts" component={Accounts} />
-              <Route path="/analytics" component={Analytics} />
-
-              <Route path="/leads" component={LeadsPage} />
-              <Route path="/settings" component={SettingsPage} />
-              <Route component={NotFound} />
-            </Switch>
+        <div className="flex h-screen bg-background">
+          <ProfessionalSidebar />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <ProfessionalHeader />
+            <main className="flex-1 overflow-y-auto">
+              <Switch>
+                <Route path="/" component={DashboardNew} />
+                <Route path="/campaigns" component={CampaignsPage} />
+                <Route path="/campaigns/create" component={CreateCampaignProfessional} />
+                <Route path="/campaigns/configure" component={ConfigureCampaign} />
+                <Route path="/accounts" component={Accounts} />
+                <Route path="/analytics" component={Analytics} />
+                <Route path="/leads" component={LeadsProfessional} />
+                <Route path="/settings" component={SettingsPage} />
+                <Route component={NotFound} />
+              </Switch>
+            </main>
           </div>
         </div>
       )}

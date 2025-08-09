@@ -15,7 +15,7 @@ interface Column<T> {
 interface DataTableProps<T> {
   title?: string;
   columns: Column<T>[];
-  data: T[];
+  data?: T[];
   loading?: boolean;
   emptyState?: {
     icon: ReactNode;
@@ -29,11 +29,13 @@ interface DataTableProps<T> {
 export function DataTable<T extends Record<string, any>>({ 
   title,
   columns, 
-  data, 
+  data = [], 
   loading = false,
   emptyState,
   className 
 }: DataTableProps<T>) {
+  // Ensure data is always an array
+  const safeData = Array.isArray(data) ? data : [];
   const renderCell = (column: Column<T>, row: T, index: number) => {
     const value = row[column.key as keyof T];
     
@@ -59,7 +61,7 @@ export function DataTable<T extends Record<string, any>>({
     );
   }
 
-  if (data.length === 0 && emptyState) {
+  if (safeData.length === 0 && emptyState) {
     return (
       <Card className={className}>
         {title && (
@@ -101,7 +103,7 @@ export function DataTable<T extends Record<string, any>>({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.map((row, rowIndex) => (
+            {safeData.map((row, rowIndex) => (
               <TableRow key={rowIndex}>
                 {columns.map((column, columnIndex) => (
                   <TableCell 

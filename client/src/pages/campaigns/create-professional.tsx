@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { FormField } from "@/components/ui/form-field";
 import { EmptyState } from "@/components/ui/empty-state";
+import { VariableChip } from "@/components/ui/variable-chip";
+import { ProfessionalPreview } from "@/components/ui/professional-preview";
 import { authHeaders } from "@/lib/queryClient";
 import { campaignSchema, validateMessageTemplate } from "@/lib/validation";
 import { 
@@ -445,36 +447,56 @@ export default function CreateCampaignProfessional() {
                 error={errors.message || (!messageValidation.isValid ? messageValidation.errors[0] : "")}
                 description="Use / to insert variables. Message will be personalized for each lead."
               >
-                <div className="relative">
-                  <Textarea
-                    placeholder="Hey {{username}}! I loved your recent content about {{topic}}..."
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(e, false)}
-                    className={`min-h-[120px] ${errors.message || !messageValidation.isValid ? "border-red-500" : ""}`}
-                  />
-                  <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
-                    {message.length}/2000
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Textarea
+                      placeholder="Hey {{username}}! I loved your recent content about {{topic}}..."
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, false)}
+                      className={`min-h-[120px] ${errors.message || !messageValidation.isValid ? "border-red-500" : ""}`}
+                    />
+                    <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
+                      {message.length}/2000
+                    </div>
+                    {showColumnSelect && (
+                      <div className="absolute top-full left-0 right-0 z-10 mt-1">
+                        <Card className="p-2">
+                          <Command>
+                            <CommandInput placeholder="Search columns..." />
+                            <CommandEmpty>No columns found.</CommandEmpty>
+                            <CommandGroup>
+                              {columns.map((column) => (
+                                <CommandItem
+                                  key={column.value}
+                                  onSelect={() => insertColumn(column.value, false)}
+                                  className="cursor-pointer flex items-center gap-2"
+                                >
+                                  <Database className="h-4 w-4" />
+                                  {column.label}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </Command>
+                        </Card>
+                      </div>
+                    )}
                   </div>
-                  {showColumnSelect && (
-                    <div className="absolute top-full left-0 right-0 z-10 mt-1">
-                      <Card className="p-2">
-                        <Command>
-                          <CommandInput placeholder="Search columns..." />
-                          <CommandEmpty>No columns found.</CommandEmpty>
-                          <CommandGroup>
-                            {columns.map((column) => (
-                              <CommandItem
-                                key={column.value}
-                                onSelect={() => insertColumn(column.value, false)}
-                                className="cursor-pointer"
-                              >
-                                {column.label}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </Command>
-                      </Card>
+                  
+                  {/* Show currently used variables */}
+                  {message && (
+                    <div className="flex flex-wrap gap-2">
+                      {Array.from(message.matchAll(/\{\{([^}]+)\}\}/g))
+                        .map(match => match[1].trim())
+                        .filter((value, index, self) => self.indexOf(value) === index)
+                        .map((variable) => (
+                          <VariableChip
+                            key={variable}
+                            variable={variable}
+                            value={previewData[variable]}
+                            showValue={true}
+                          />
+                        ))}
                     </div>
                   )}
                 </div>
@@ -542,33 +564,18 @@ export default function CreateCampaignProfessional() {
         {/* Right Column - Preview */}
         <div className="space-y-6">
           {/* Live Preview */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Eye className="h-5 w-5" />
-                Live Preview
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Profile URL Preview</Label>
-                <div className="p-3 bg-muted rounded-lg font-mono text-sm break-all">
-                  {previewProfileUrl || "Enter profile URL template above..."}
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Message Preview</Label>
-                <div className="p-3 bg-muted rounded-lg text-sm whitespace-pre-wrap min-h-[120px]">
-                  {previewMessage || "Enter message template above..."}
-                </div>
-              </div>
-
-              <div className="text-xs text-muted-foreground">
-                Preview shows how your template will look with sample data from your CSV
-              </div>
-            </CardContent>
-          </Card>
+          <ProfessionalPreview
+            title="Profile URL Preview"
+            template={profileUrl}
+            sampleData={previewData}
+            className="mb-6"
+          />
+          
+          <ProfessionalPreview
+            title="Message Preview"
+            template={message}
+            sampleData={previewData}
+          />
 
           {/* Available Variables */}
           <Card>
@@ -597,20 +604,19 @@ export default function CreateCampaignProfessional() {
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {columns.map((column) => (
-                      <Badge 
-                        key={column.value} 
-                        variant="outline" 
-                        className="cursor-pointer hover:bg-accent"
+                      <VariableChip
+                        key={column.value}
+                        variable={column.value}
+                        value={previewData[column.value]}
+                        showValue={true}
                         onClick={() => {
                           navigator.clipboard.writeText(`{{${column.value}}}`);
                           toast({
                             title: "Copied",
-                            description: `{{${column.value}}} copied to clipboard`,
+                            description: `Variable copied to clipboard`,
                           });
                         }}
-                      >
-                        {column.label}
-                      </Badge>
+                      />
                     ))}
                   </div>
                 </div>

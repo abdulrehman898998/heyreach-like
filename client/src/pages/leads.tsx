@@ -10,8 +10,11 @@ import { useToast } from "@/hooks/use-toast";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { FormField } from "@/components/ui/form-field";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ProfessionalUpload } from "@/components/ui/professional-upload";
+import { DataTable } from "@/components/ui/data-table";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { authHeaders } from "@/lib/queryClient";
-import { validateCsvFile } from "@/lib/validation";
+import { validateCsvFile, validateInstagramProfileUrl } from "@/lib/validation";
 
 interface LeadFile {
   id: number;
