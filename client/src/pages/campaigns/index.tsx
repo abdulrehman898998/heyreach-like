@@ -1,113 +1,166 @@
-import { useState, useEffect } from "react";
-import { Link } from "wouter";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-
-interface Campaign {
-  id: number;
-  name: string;
-  status: string;
-  progress: {
-    total: number;
-    completed: number;
-    failed: number;
-  };
-  createdAt: string;
-}
+import { Plus, Play, Eye, MoreHorizontal } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function CampaignsPage() {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    fetchCampaigns();
-  }, []);
+  // Fetch campaigns
+  const { data: campaignsData, isLoading } = useQuery({ 
+    queryKey: ["/api/campaigns"],
+    retry: false
+  });
+  
+  const campaigns = campaignsData?.campaigns || [];
 
-  const fetchCampaigns = async () => {
-    try {
-      const response = await fetch("/api/campaigns");
-      const data = await response.json();
-      if (data.success) {
-        setCampaigns(data.campaigns);
-      } else {
-        throw new Error(data.error);
-      }
-    } catch (error) {
+  // Execute campaign mutation
+  const executeCampaignMutation = useMutation({
+    mutationFn: async (campaignId: number) => {
+      return apiRequest(`/api/campaigns/${campaignId}/execute`, {
+        method: 'POST'
+      });
+    },
+    onSuccess: (data) => {
       toast({
-        title: "Failed to load campaigns",
-        description: error instanceof Error ? error.message : "Please try again",
+        title: "Campaign executed successfully",
+        description: data.message,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/campaigns'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Execution failed",
+        description: error.message || "Failed to execute campaign",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
+    }
+  });
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'draft': return 'bg-gray-100 text-gray-800';
+      case 'running': return 'bg-blue-100 text-blue-800';
+      case 'completed': return 'bg-green-100 text-green-800';
+      case 'paused': return 'bg-yellow-100 text-yellow-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
+  const handleExecute = (campaignId: number) => {
+    executeCampaignMutation.mutate(campaignId);
+  };
+
+  const handleViewExecutions = (campaignId: number) => {
+    setLocation(`/campaigns/${campaignId}/executions`);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-lg">Loading campaigns...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="container mx-auto py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Campaigns</h1>
-        <Link href="/campaigns/create">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Create Campaign
-          </Button>
-        </Link>
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Campaigns</h1>
+          <p className="text-muted-foreground">Manage your outreach campaigns</p>
+        </div>
+        <Button onClick={() => setLocation('/campaigns/create')}>
+          <Plus className="h-4 w-4 mr-2" />
+          Create Campaign
+        </Button>
       </div>
 
-      {isLoading ? (
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-slate-600">Loading campaigns...</p>
-        </div>
-      ) : campaigns.length === 0 ? (
+      {campaigns.length === 0 ? (
         <Card>
-          <CardContent className="py-8 text-center">
-            <p className="text-slate-600">No campaigns yet.</p>
-            <p className="text-slate-600 mt-1">Create your first campaign to get started!</p>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="text-center space-y-4">
+              <h3 className="text-lg font-medium">No campaigns yet</h3>
+              <p className="text-muted-foreground">Create your first campaign to start automating outreach</p>
+              <Button onClick={() => setLocation('/campaigns/create')}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Campaign
+              </Button>
+            </div>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {campaigns.map((campaign) => (
+        <div className="space-y-4">
+          {campaigns.map((campaign: any) => (
             <Card key={campaign.id}>
               <CardHeader>
-                <CardTitle className="flex justify-between items-center">
-                  <span>{campaign.name}</span>
-                  <span className={`text-sm px-2 py-1 rounded ${
-                    campaign.status === "running" ? "bg-green-100 text-green-700" :
-                    campaign.status === "completed" ? "bg-blue-100 text-blue-700" :
-                    campaign.status === "failed" ? "bg-red-100 text-red-700" :
-                    "bg-slate-100 text-slate-700"
-                  }`}>
-                    {campaign.status}
-                  </span>
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      {campaign.name}
+                      <Badge className={getStatusColor(campaign.status)}>
+                        {campaign.status}
+                      </Badge>
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Created {new Date(campaign.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleViewExecutions(campaign.id)}>
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Executions
+                      </DropdownMenuItem>
+                      {campaign.status === 'draft' && (
+                        <DropdownMenuItem 
+                          onClick={() => handleExecute(campaign.id)}
+                          disabled={executeCampaignMutation.isPending}
+                        >
+                          <Play className="h-4 w-4 mr-2" />
+                          Execute Campaign
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-600">Progress</span>
-                    <span className="font-medium">
-                      {campaign.progress.completed}/{campaign.progress.total}
-                    </span>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-medium text-sm mb-1">Profile URL Template:</h4>
+                    <p className="text-sm bg-gray-50 p-2 rounded border">
+                      {campaign.profileUrlTemplate}
+                    </p>
                   </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary"
-                      style={{
-                        width: `${(campaign.progress.completed / campaign.progress.total) * 100}%`
-                      }}
-                    />
+                  <div>
+                    <h4 className="font-medium text-sm mb-1">Message Template:</h4>
+                    <p className="text-sm bg-gray-50 p-2 rounded border">
+                      {campaign.messageTemplate}
+                    </p>
                   </div>
-                  <div className="flex justify-between text-xs text-slate-500">
-                    <span>Created {new Date(campaign.createdAt).toLocaleDateString()}</span>
-                    {campaign.progress.failed > 0 && (
-                      <span className="text-red-600">{campaign.progress.failed} failed</span>
-                    )}
+                  <div className="flex gap-4 text-sm text-muted-foreground">
+                    <span>Total Leads: {campaign.totalLeads || 0}</span>
+                    <span>Messages Sent: {campaign.messagesSent || 0}</span>
                   </div>
                 </div>
               </CardContent>

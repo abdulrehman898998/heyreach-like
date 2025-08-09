@@ -90,13 +90,13 @@ export default function Dashboard() {
             </Button>
             
             <Button 
-              onClick={() => setLocation('/campaigns/create')}
+              onClick={() => setLocation('/campaigns')}
               variant="outline"
               className="h-20 flex flex-col gap-2"
             >
               <Target className="h-6 w-6" />
-              <span className="font-medium">Create Campaign</span>
-              <span className="text-xs text-muted-foreground">Build outreach sequences</span>
+              <span className="font-medium">Manage Campaigns</span>
+              <span className="text-xs text-muted-foreground">View and execute campaigns</span>
             </Button>
           </div>
         </CardContent>

@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import Dashboard from "@/pages/dashboard";
 import LeadsPage from "@/pages/leads";
 import CreateCampaign from "@/pages/campaigns/create";
+import CampaignsPage from "@/pages/campaigns/index";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,6 +22,7 @@ function App() {
         <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/leads" component={LeadsPage} />
+          <Route path="/campaigns" component={CampaignsPage} />
           <Route path="/campaigns/create" component={CreateCampaign} />
           <Route>
             <div className="container mx-auto p-6 text-center">

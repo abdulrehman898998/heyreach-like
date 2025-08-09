@@ -189,6 +189,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Campaign execution endpoint
+  app.post("/api/campaigns/:id/execute", async (req, res) => {
+    try {
+      const campaignId = parseInt(req.params.id);
+      const campaign = await storage.getCampaign(campaignId);
+      
+      if (!campaign) {
+        return res.status(404).json({ success: false, error: "Campaign not found" });
+      }
+
+      // Get all leads for this campaign
+      const leads = await storage.getLeads();
+      
+      let executedCount = 0;
+      for (const lead of leads) {
+        // Replace variables in profile URL template
+        let profileUrl = campaign.profileUrlTemplate;
+        let message = campaign.messageTemplate;
+        
+        // Get the lead data (stored as JSON)
+        const leadData = lead.data as Record<string, any>;
+        
+        // Replace {{columnName}} variables with actual data
+        Object.keys(leadData).forEach(columnName => {
+          const value = leadData[columnName] || '';
+          profileUrl = profileUrl.replace(new RegExp(`{{${columnName}}}`, 'g'), value);
+          message = message.replace(new RegExp(`{{${columnName}}}`, 'g'), value);
+        });
+
+        // Create campaign execution record
+        await storage.createCampaignExecution({
+          campaignId: campaign.id,
+          leadId: lead.id,
+          profileUrl,
+          message,
+          status: 'sent' // Simulating successful send
+        });
+        
+        executedCount++;
+      }
+
+      // Update campaign status and sent count
+      await storage.updateCampaign(campaignId, {
+        status: 'completed',
+        messagesSent: executedCount,
+        totalLeads: leads.length
+      });
+
+      res.json({
+        success: true,
+        executedCount,
+        message: `Campaign executed successfully. ${executedCount} messages sent.`
+      });
+    } catch (error) {
+      console.error("Error executing campaign:", error);
+      res.status(500).json({ success: false, error: "Failed to execute campaign" });
+    }
+  });
+
+  // Get campaign executions
+  app.get("/api/campaigns/:id/executions", async (req, res) => {
+    try {
+      const campaignId = parseInt(req.params.id);
+      const executions = await storage.getCampaignExecutions(campaignId);
+      res.json({ success: true, executions });
+    } catch (error) {
+      console.error("Error fetching campaign executions:", error);
+      res.status(500).json({ success: false, error: "Failed to fetch executions" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
