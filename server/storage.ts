@@ -1,352 +1,134 @@
-import 'dotenv/config';
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-import { memoryStorage } from "./storage.memory";
-import { like } from "drizzle-orm";
-import * as schema from "../shared/schema.js";
+import { eq, desc } from "drizzle-orm";
+import { db } from "./db";
 import {
-  users,
-  instagramAccounts,
   leadFiles,
   leads,
-  templates,
   campaigns,
-  campaignLeads,
-  type User,
-  type NewUser,
-  type InstagramAccount,
-  type NewInstagramAccount,
+  campaignExecutions,
   type LeadFile,
-  type NewLeadFile,
   type Lead,
-  type NewLead,
-  type Template,
-  type NewTemplate,
   type Campaign,
-  type NewCampaign,
-  type CampaignLead,
-  type NewCampaignLead,
-  type ColumnMapping,
-  type CampaignScheduling,
-  extractTemplateVariables,
-  generateMessage,
+  type InsertLeadFileInput,
+  type InsertLeadInput,
+  type InsertCampaignInput,
+  type InsertCampaignExecutionInput
 } from "@shared/schema";
-import { eq, and, desc, count, gte, lte } from "drizzle-orm";
 
-// Database connection
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/instagram_automation";
-const client = postgres(connectionString);
-export const db = drizzle(client, { schema });
+export interface IStorage {
+  // Lead Files
+  createLeadFile(data: InsertLeadFileInput): Promise<LeadFile>;
+  getLeadFiles(): Promise<LeadFile[]>;
+  getLeadFile(id: number): Promise<LeadFile | undefined>;
+  
+  // Leads
+  createLead(data: InsertLeadInput): Promise<Lead>;
+  getLeadsByFileId(fileId: number): Promise<Lead[]>;
+  getLeads(): Promise<Lead[]>;
+  
+  // Campaigns
+  createCampaign(data: InsertCampaignInput): Promise<Campaign>;
+  getCampaigns(): Promise<Campaign[]>;
+  getCampaign(id: number): Promise<Campaign | undefined>;
+  updateCampaign(id: number, data: Partial<InsertCampaignInput>): Promise<Campaign | undefined>;
+  
+  // Campaign Executions
+  createCampaignExecution(data: InsertCampaignExecutionInput): Promise<void>;
+  getCampaignExecutions(campaignId: number): Promise<any[]>;
+  
+  // Analytics
+  getStats(): Promise<{
+    totalMessages: number;
+    activeCampaigns: number;
+    successRate: number;
+    totalLeads: number;
+  }>;
+  
+  // Available columns from all uploaded files
+  getAvailableColumns(): Promise<string[]>;
+}
 
-export class DatabaseStorage {
-  // User Management
-  async createUser(userData: NewUser): Promise<User> {
-    const [user] = await db.insert(users).values(userData).returning();
-    return user;
+export class DatabaseStorage implements IStorage {
+  async createLeadFile(data: InsertLeadFileInput): Promise<LeadFile> {
+    const [leadFile] = await db.insert(leadFiles).values(data).returning();
+    return leadFile;
   }
 
-  async getUserById(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+  async getLeadFiles(): Promise<LeadFile[]> {
+    return await db.select().from(leadFiles).orderBy(desc(leadFiles.createdAt));
   }
 
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user;
+  async getLeadFile(id: number): Promise<LeadFile | undefined> {
+    const [leadFile] = await db.select().from(leadFiles).where(eq(leadFiles.id, id));
+    return leadFile;
   }
 
-  // Instagram Account Management
-  async createInstagramAccount(accountData: NewInstagramAccount): Promise<InstagramAccount> {
-    const [account] = await db.insert(instagramAccounts).values(accountData).returning();
-    return account;
-  }
-
-  async getInstagramAccountsByUser(userId: string): Promise<InstagramAccount[]> {
-    return await db.select().from(instagramAccounts).where(eq(instagramAccounts.userId, userId));
-  }
-
-  async getInstagramAccountById(id: number): Promise<InstagramAccount | undefined> {
-    const [account] = await db.select().from(instagramAccounts).where(eq(instagramAccounts.id, id));
-    return account;
-  }
-
-  async updateInstagramAccount(id: number, updates: Partial<InstagramAccount>): Promise<InstagramAccount> {
-    const [account] = await db.update(instagramAccounts).set(updates).where(eq(instagramAccounts.id, id)).returning();
-    return account;
-  }
-
-  // Lead File Management
-  async createLeadFile(fileData: NewLeadFile): Promise<LeadFile> {
-    const [file] = await db.insert(leadFiles).values(fileData).returning();
-    return file;
-  }
-
-  async getLeadFilesByUser(userId: string): Promise<LeadFile[]> {
-    return await db.select().from(leadFiles).where(eq(leadFiles.userId, userId)).orderBy(desc(leadFiles.uploadedAt));
-  }
-
-  async getLeadFileById(id: number): Promise<LeadFile | undefined> {
-    const [file] = await db.select().from(leadFiles).where(eq(leadFiles.id, id));
-    return file;
-  }
-
-  // Lead Management
-  async createLead(leadData: NewLead): Promise<Lead> {
-    const [lead] = await db.insert(leads).values(leadData).returning();
+  async createLead(data: InsertLeadInput): Promise<Lead> {
+    const [lead] = await db.insert(leads).values(data).returning();
     return lead;
-  }
-
-  async createLeads(leadsData: NewLead[]): Promise<Lead[]> {
-    return await db.insert(leads).values(leadsData).returning();
-  }
-
-  async getLeadsByFile(fileId: number): Promise<Lead[]> {
-    return await db.select().from(leads).where(eq(leads.fileId, fileId));
   }
 
   async getLeadsByFileId(fileId: number): Promise<Lead[]> {
-    return await db.select().from(leads).where(eq(leads.fileId, fileId));
+    return await db.select().from(leads).where(eq(leads.leadFileId, fileId));
   }
 
-  async getLeadById(leadId: number): Promise<Lead | undefined> {
-    const [lead] = await db.select().from(leads).where(eq(leads.id, leadId));
-    return lead;
+  async getLeads(): Promise<Lead[]> {
+    return await db.select().from(leads).orderBy(desc(leads.createdAt));
   }
 
-  async getLeadsByFileWithPagination(fileId: number, offset: number = 0, limit: number = 10): Promise<Lead[]> {
-    return await db.select().from(leads).where(eq(leads.fileId, fileId)).limit(limit).offset(offset);
-  }
-
-  async getLeadCountByFile(fileId: number): Promise<number> {
-    const [result] = await db.select({ count: count() }).from(leads).where(eq(leads.fileId, fileId));
-    return result?.count || 0;
-  }
-
-  // Template Management
-  async createTemplate(templateData: NewTemplate): Promise<Template> {
-    const [template] = await db.insert(templates).values(templateData).returning();
-    return template;
-  }
-
-  async getTemplatesByUser(userId: string): Promise<Template[]> {
-    return await db.select().from(templates).where(eq(templates.userId, userId)).orderBy(desc(templates.createdAt));
-  }
-
-  async getTemplateById(id: number): Promise<Template | undefined> {
-    const [template] = await db.select().from(templates).where(eq(templates.id, id));
-    return template;
-  }
-
-  async updateTemplate(id: number, updates: Partial<Template>): Promise<Template> {
-    const [template] = await db.update(templates).set(updates).where(eq(templates.id, id)).returning();
-    return template;
-  }
-
-  async deleteTemplate(id: number): Promise<void> {
-    await db.delete(templates).where(eq(templates.id, id));
-  }
-
-  // Campaign Management
-  async createCampaign(campaignData: NewCampaign): Promise<Campaign> {
-    const [campaign] = await db.insert(campaigns).values(campaignData).returning();
+  async createCampaign(data: InsertCampaignInput): Promise<Campaign> {
+    const [campaign] = await db.insert(campaigns).values(data).returning();
     return campaign;
   }
 
-  async getCampaignsByUser(userId: string): Promise<Campaign[]> {
-    return await db.select().from(campaigns).where(eq(campaigns.userId, userId)).orderBy(desc(campaigns.createdAt));
+  async getCampaigns(): Promise<Campaign[]> {
+    return await db.select().from(campaigns).orderBy(desc(campaigns.createdAt));
   }
 
-  async getCampaignById(id: number): Promise<Campaign | undefined> {
+  async getCampaign(id: number): Promise<Campaign | undefined> {
     const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, id));
     return campaign;
   }
 
-  async updateCampaign(id: number, updates: Partial<Campaign>): Promise<Campaign> {
-    const [campaign] = await db.update(campaigns).set(updates).where(eq(campaigns.id, id)).returning();
+  async updateCampaign(id: number, data: Partial<InsertCampaignInput>): Promise<Campaign | undefined> {
+    const [campaign] = await db.update(campaigns)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(campaigns.id, id))
+      .returning();
     return campaign;
   }
 
-  // Campaign Lead Management
-  async createCampaignLead(campaignLeadData: NewCampaignLead): Promise<CampaignLead> {
-    const [campaignLead] = await db.insert(campaignLeads).values(campaignLeadData).returning();
-    return campaignLead;
+  async createCampaignExecution(data: InsertCampaignExecutionInput): Promise<void> {
+    await db.insert(campaignExecutions).values(data);
   }
 
-  async createCampaignLeads(campaignLeadsData: NewCampaignLead[]): Promise<CampaignLead[]> {
-    return await db.insert(campaignLeads).values(campaignLeadsData).returning();
+  async getCampaignExecutions(campaignId: number) {
+    return await db.select().from(campaignExecutions).where(eq(campaignExecutions.campaignId, campaignId));
   }
 
-  async getCampaignLeadsByCampaign(campaignId: number): Promise<CampaignLead[]> {
-    return await db.select().from(campaignLeads).where(eq(campaignLeads.campaignId, campaignId));
-  }
+  async getStats() {
+    const campaignCount = await db.select().from(campaigns);
+    const leadCount = await db.select().from(leads);
+    const executionCount = await db.select().from(campaignExecutions);
+    const successfulExecutions = await db.select().from(campaignExecutions).where(eq(campaignExecutions.status, 'sent'));
 
-  async updateCampaignLead(id: number, updates: Partial<CampaignLead>): Promise<CampaignLead> {
-    const [campaignLead] = await db.update(campaignLeads).set(updates).where(eq(campaignLeads.id, id)).returning();
-    return campaignLead;
-  }
-
-  // Campaign Statistics
-  async getCampaignStats(campaignId: number): Promise<{
-    total: number;
-    pending: number;
-    sent: number;
-    delivered: number;
-    failed: number;
-  }> {
-    const results = await db
-      .select({
-        status: campaignLeads.status,
-        count: count(),
-      })
-      .from(campaignLeads)
-      .where(eq(campaignLeads.campaignId, campaignId))
-      .groupBy(campaignLeads.status);
-
-    const stats = {
-      total: 0,
-      pending: 0,
-      sent: 0,
-      delivered: 0,
-      failed: 0,
+    return {
+      totalMessages: executionCount.length,
+      activeCampaigns: campaignCount.filter(c => c.status === 'running').length,
+      successRate: executionCount.length > 0 ? Math.round((successfulExecutions.length / executionCount.length) * 100) : 0,
+      totalLeads: leadCount.length
     };
+  }
 
-    results.forEach((result) => {
-      const count = Number(result.count);
-      stats.total += count;
-      stats[result.status as keyof typeof stats] = count;
+  async getAvailableColumns(): Promise<string[]> {
+    const files = await this.getLeadFiles();
+    const allColumns = new Set<string>();
+    
+    files.forEach(file => {
+      file.selectedColumns.forEach(col => allColumns.add(col));
     });
-
-    return stats;
-  }
-
-  // Message Generation
-  async generateMessagesForCampaign(campaignId: number): Promise<void> {
-    const campaign = await this.getCampaignById(campaignId);
-    if (!campaign) throw new Error("Campaign not found");
-
-         const template = await this.getTemplateById(campaign.templateId || 0);
-    if (!template) throw new Error("Template not found");
-
-         const leads = await this.getLeadsByFile(campaign.leadFileId || 0);
-    const accounts = await this.getInstagramAccountsByUser(campaign.userId || '');
-
-    if (accounts.length === 0) throw new Error("No Instagram accounts available");
-
-    const campaignLeads: NewCampaignLead[] = [];
-    let accountIndex = 0;
-
-    for (const lead of leads) {
-             // Prepare variables for message generation
-       const variables: Record<string, string> = {
-         name: lead.name || "",
-         profile_url: lead.profileUrl,
-         ...(lead.customFields as Record<string, string>),
-       };
-
-      // Generate message content
-      const messageContent = generateMessage(template.content, variables);
-
-      // Select account (round-robin)
-      const account = accounts[accountIndex % accounts.length];
-
-      campaignLeads.push({
-        campaignId: campaign.id,
-        leadId: lead.id,
-        accountId: account.id,
-        messageContent,
-        status: "pending",
-      });
-
-      accountIndex++;
-    }
-
-    // Create campaign leads
-    await this.createCampaignLeads(campaignLeads);
-
-    // Update campaign with total targets
-    await this.updateCampaign(campaign.id, {
-      totalTargets: leads.length,
-      status: "scheduled",
-    });
-  }
-
-  // Account Health Management
-  async updateAccountHealth(accountId: number, healthScore: number): Promise<void> {
-    await this.updateInstagramAccount(accountId, { healthScore });
-  }
-
-  async getHealthyAccounts(userId: string, minHealthScore: number = 50): Promise<InstagramAccount[]> {
-    return await db
-      .select()
-      .from(instagramAccounts)
-      .where(and(eq(instagramAccounts.userId, userId), gte(instagramAccounts.healthScore, minHealthScore)));
-  }
-
-  // Daily Limits Management
-  async getAccountMessagesSentToday(accountId: number): Promise<number> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const [result] = await db
-      .select({ count: count() })
-      .from(campaignLeads)
-      .where(
-        and(
-          eq(campaignLeads.accountId, accountId),
-          gte(campaignLeads.sentAt, today)
-        )
-      );
-
-    return result?.count || 0;
-  }
-
-  async getUserMessagesSentToday(userId: string): Promise<number> {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const [result] = await db
-      .select({ count: count() })
-      .from(campaignLeads)
-      .innerJoin(campaigns, eq(campaignLeads.campaignId, campaigns.id))
-      .where(
-        and(
-          eq(campaigns.userId, userId),
-          gte(campaignLeads.sentAt, today)
-        )
-      );
-
-    return result?.count || 0;
-  }
-
-  // Search and Filter
-  async searchTemplates(userId: string, keyword: string): Promise<Template[]> {
-    return await db
-      .select()
-      .from(templates)
-      .where(and(eq(templates.userId, userId), like(templates.name, `%${keyword}%`)))
-      .orderBy(desc(templates.createdAt));
-  }
-
-  async searchCampaigns(userId: string, keyword: string): Promise<Campaign[]> {
-    return await db
-      .select()
-      .from(campaigns)
-      .where(and(eq(campaigns.userId, userId), like(campaigns.name, `%${keyword}%`)))
-      .orderBy(desc(campaigns.createdAt));
-  }
-
-  // Cleanup and Maintenance
-  async deleteLeadFile(fileId: number): Promise<void> {
-    // This will cascade delete all leads associated with the file
-    await db.delete(leadFiles).where(eq(leadFiles.id, fileId));
-  }
-
-  async deleteCampaign(campaignId: number): Promise<void> {
-    // This will cascade delete all campaign leads
-    await db.delete(campaigns).where(eq(campaigns.id, campaignId));
+    
+    return Array.from(allColumns);
   }
 }
 
-// Use memory storage for development, database storage for production
-const useMemory = process.env.USE_MEMORY === '1' || !process.env.DATABASE_URL;
-export const storage = useMemory ? memoryStorage : new DatabaseStorage();
+export const storage = new DatabaseStorage();
