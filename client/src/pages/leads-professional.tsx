@@ -239,13 +239,27 @@ export default function LeadsProfessional() {
           <CardContent className="space-y-4">
             {!showColumnSelection ? (
               <>
-                <div className="flex items-center gap-4">
+                <div className="space-y-4">
                   <Input
                     type="file"
                     accept=".csv"
                     onChange={handleFileSelect}
-                    className="flex-1"
+                    className="w-full"
                   />
+                  
+                  {!selectedFile && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+                        input?.click();
+                      }}
+                      className="w-full"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Choose CSV File
+                    </Button>
+                  )}
                 </div>
                 
                 <div className="text-sm text-muted-foreground">

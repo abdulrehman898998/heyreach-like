@@ -52,11 +52,11 @@ export function MinimalSidebar() {
                 variant="ghost"
                 className={cn(
                   "w-full justify-start gap-3 h-10 font-normal transition-all duration-200 hover-lift",
-                  isActive ? "primary-gradient text-primary-foreground shadow-md" : "text-muted-foreground hover:bg-muted/50"
+                  isActive ? "primary-gradient text-white shadow-md" : "text-foreground hover:bg-muted/50"
                 )}
               >
                 <Icon className="h-4 w-4" />
-                {item.title}
+                <span className="font-medium">{item.title}</span>
               </Button>
             </Link>
           );
@@ -67,10 +67,10 @@ export function MinimalSidebar() {
       <div className="p-4 border-t border-border">
         <Button 
           variant="ghost" 
-          className="w-full justify-start gap-3 h-10 font-normal text-muted-foreground hover:bg-muted/50 transition-all duration-200"
+          className="w-full justify-start gap-3 h-10 font-normal text-foreground hover:bg-muted/50 transition-all duration-200"
           onClick={() => window.location.href = '/api/logout'}
         >
-          Sign Out
+          <span className="font-medium">Sign Out</span>
         </Button>
       </div>
     </div>
