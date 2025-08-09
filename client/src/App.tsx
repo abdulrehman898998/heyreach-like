@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import LoginPage from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import CampaignsPage from "@/pages/campaigns";
-import CreateCampaign from "@/pages/campaigns/create";
+import CreateCampaignProfessional from "@/pages/campaigns/create-professional";
 import ConfigureCampaign from "@/pages/campaigns/configure";
 import Accounts from "@/pages/accounts";
 import Analytics from "@/pages/analytics";
@@ -42,7 +42,7 @@ function Router() {
             <Switch>
               <Route path="/" component={Dashboard} />
               <Route path="/campaigns" component={CampaignsPage} />
-              <Route path="/campaigns/create" component={CreateCampaign} />
+              <Route path="/campaigns/create" component={CreateCampaignProfessional} />
               <Route path="/campaigns/configure" component={ConfigureCampaign} />
               <Route path="/accounts" component={Accounts} />
               <Route path="/analytics" component={Analytics} />

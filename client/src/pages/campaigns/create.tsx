@@ -6,10 +6,14 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandInput } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { FormField } from "@/components/ui/form-field";
+import { EmptyState } from "@/components/ui/empty-state";
 import { authHeaders } from "@/lib/queryClient";
+import { campaignSchema, validateMessageTemplate } from "@/lib/validation";
+import { AlertCircle, CheckCircle2, Users, MessageSquare, ExternalLink, Zap } from "lucide-react";
 
 interface Column {
   value: string;
@@ -26,17 +30,65 @@ interface Account {
 export default function CreateCampaign() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  
+  // Form state
+  const [campaignName, setCampaignName] = useState("");
   const [profileUrl, setProfileUrl] = useState("");
   const [message, setMessage] = useState("");
+  const [selectedLeadFileId, setSelectedLeadFileId] = useState<number | null>(null);
+  
+  // UI state
   const [isLoading, setIsLoading] = useState(false);
-  const [columns, setColumns] = useState<Column[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [selectedAccounts, setSelectedAccounts] = useState<number[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showColumnSelect, setShowColumnSelect] = useState(false);
   const [showProfileUrlColumnSelect, setShowProfileUrlColumnSelect] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [profileUrlCursorPosition, setProfileUrlCursorPosition] = useState(0);
+  
+  // Data state
+  const [columns, setColumns] = useState<Column[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [leadFiles, setLeadFiles] = useState<any[]>([]);
+  const [selectedAccounts, setSelectedAccounts] = useState<number[]>([]);
   const [previewData, setPreviewData] = useState<Record<string, string>>({});
+  
+  // Validation state
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [messageValidation, setMessageValidation] = useState<{ isValid: boolean; errors: string[] }>({ isValid: true, errors: [] });
+
+  // Validate form in real-time
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!campaignName.trim()) {
+      newErrors.campaignName = "Campaign name is required";
+    } else if (campaignName.length > 100) {
+      newErrors.campaignName = "Campaign name must be less than 100 characters";
+    }
+    
+    if (!profileUrl.trim()) {
+      newErrors.profileUrl = "Profile URL template is required";
+    }
+    
+    if (!message.trim()) {
+      newErrors.message = "Message template is required";
+    } else if (message.length < 10) {
+      newErrors.message = "Message must be at least 10 characters";
+    } else if (message.length > 2000) {
+      newErrors.message = "Message must be less than 2000 characters";
+    }
+    
+    if (selectedAccounts.length === 0) {
+      newErrors.accounts = "At least one Instagram account must be selected";
+    }
+    
+    if (!selectedLeadFileId) {
+      newErrors.leadFile = "Lead file must be selected";
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   // Generate sample data for preview
   const generatePreviewData = (cols: Column[]) => {
@@ -82,47 +134,109 @@ export default function CreateCampaign() {
   };
 
   useEffect(() => {
-    fetchColumns();
-    fetchAccounts();
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        // Fetch columns, accounts, and lead files in parallel
+        const [columnsResponse, accountsResponse, leadFilesResponse] = await Promise.all([
+          fetch('/api/templates/columns', { headers: authHeaders() }),
+          fetch('/api/accounts', { headers: authHeaders() }),
+          fetch('/api/leads/files', { headers: authHeaders() })
+        ]);
+
+        // Process columns
+        const columnsData = await columnsResponse.json();
+        if (columnsData.success) {
+          const cols = columnsData.columns.map((col: string) => ({ value: col, label: col }));
+          setColumns(cols);
+          setPreviewData(generatePreviewData(cols));
+        }
+
+        // Process accounts
+        const accountsData = await accountsResponse.json();
+        if (accountsData.success) {
+          setAccounts(accountsData.accounts);
+        }
+
+        // Process lead files
+        const leadFilesData = await leadFilesResponse.json();
+        if (leadFilesData.success) {
+          setLeadFiles(leadFilesData.files);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load form data. Please refresh the page.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
-  const fetchColumns = async () => {
-    try {
-      const response = await fetch("/api/templates/columns", {
-        headers: {
-          ...authHeaders(),
-        },
-      });
-      const data = await response.json();
-      if (data.success) {
-        console.log("Fetched columns:", data.columns);
-        const columnsList = data.columns.map((col: string) => ({
-          value: col,
-          label: col
-        }));
-        setColumns(columnsList);
-        const sampleData = generatePreviewData(columnsList);
-        setPreviewData(sampleData);
-      }
-    } catch (error) {
-      console.error("Failed to fetch columns:", error);
+  // Validate message template in real-time
+  useEffect(() => {
+    if (message) {
+      const validation = validateMessageTemplate(message);
+      setMessageValidation(validation);
+    } else {
+      setMessageValidation({ isValid: true, errors: [] });
     }
-  };
+  }, [message]);
 
-  const fetchAccounts = async () => {
+  // Enhanced create campaign function with validation
+  const handleCreateCampaign = async () => {
+    if (!validateForm()) {
+      toast({
+        title: "Validation Error",
+        description: "Please fix the form errors before submitting",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    
     try {
-      const response = await fetch("/api/accounts", {
+      const response = await fetch('/api/campaigns', {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           ...authHeaders(),
         },
+        body: JSON.stringify({
+          name: campaignName,
+          profileUrl,
+          message,
+          selectedAccounts,
+          leadFileId: selectedLeadFileId,
+        }),
       });
+
       const data = await response.json();
-      if (data.success) {
-        setAccounts(data.accounts);
-        setSelectedAccounts(data.accounts.map((acc: Account) => acc.id));
+      
+      if (response.ok && data.success) {
+        toast({
+          title: "Campaign Created",
+          description: "Your campaign has been created successfully",
+        });
+        setLocation('/campaigns');
+      } else {
+        throw new Error(data.error || 'Failed to create campaign');
       }
     } catch (error) {
-      console.error("Failed to fetch accounts:", error);
+      console.error('Error creating campaign:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to create campaign",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
