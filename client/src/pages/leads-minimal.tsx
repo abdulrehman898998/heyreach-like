@@ -24,7 +24,7 @@ export default function LeadsMinimal() {
     queryKey: ["/api/leads"],
   });
 
-  const leadFiles = leadsData || [];
+  const leadFiles = Array.isArray(leadsData) ? leadsData : [];
 
   // Upload mutation
   const uploadMutation = useMutation({

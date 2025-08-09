@@ -22,7 +22,7 @@ export default function DashboardMinimal() {
   const { data: campaigns, isLoading } = useQuery({ queryKey: ["/api/campaigns"] });
 
   const dashboardStats = stats || {};
-  const campaignList = campaigns || [];
+  const campaignList = Array.isArray(campaigns) ? campaigns : [];
 
   // Campaign table columns
   const campaignColumns = [
@@ -56,49 +56,49 @@ export default function DashboardMinimal() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       <MinimalHeader 
         title="Dashboard"
         subtitle="Outreach platform overview"
         actions={headerActions}
       />
       
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 animate-fade-in">
         {/* Stats */}
         <div className="grid gap-4 md:grid-cols-4">
-          <Card>
+          <Card className="card-gradient hover-lift">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">Messages</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Messages</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{dashboardStats.totalMessages || 0}</div>
+              <div className="text-2xl font-bold text-foreground">{dashboardStats.totalMessages || 0}</div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="card-gradient hover-lift">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">Campaigns</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Campaigns</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{dashboardStats.activeCampaigns || 0}</div>
+              <div className="text-2xl font-bold text-foreground">{dashboardStats.activeCampaigns || 0}</div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="card-gradient hover-lift">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">Success Rate</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Success Rate</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{dashboardStats.successRate || 0}%</div>
+              <div className="text-2xl font-bold text-foreground">{dashboardStats.successRate || 0}%</div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="card-gradient hover-lift">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-gray-600">Leads</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Leads</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{dashboardStats.totalLeads || 0}</div>
+              <div className="text-2xl font-bold text-foreground">{dashboardStats.totalLeads || 0}</div>
             </CardContent>
           </Card>
         </div>

@@ -29,10 +29,15 @@ export function MinimalSidebar() {
   const [location] = useLocation();
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
+    <div className="w-64 bg-white/95 backdrop-blur-sm border-r border-border flex flex-col animate-fade-in">
       {/* Logo */}
-      <div className="p-6 border-b border-gray-200">
-        <h1 className="text-xl font-semibold text-black">SocialMetrics</h1>
+      <div className="p-6 border-b border-border">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 primary-gradient rounded-lg flex items-center justify-center">
+            <span className="text-white font-semibold text-sm">SM</span>
+          </div>
+          <h1 className="text-xl font-semibold text-foreground">SocialMetrics</h1>
+        </div>
       </div>
 
       {/* Navigation */}
@@ -46,8 +51,8 @@ export function MinimalSidebar() {
               <Button
                 variant="ghost"
                 className={cn(
-                  "w-full justify-start gap-3 h-10 font-normal",
-                  isActive ? "bg-black text-white hover:bg-black hover:text-white" : "text-gray-700 hover:bg-gray-100"
+                  "w-full justify-start gap-3 h-10 font-normal transition-all duration-200 hover-lift",
+                  isActive ? "primary-gradient text-primary-foreground shadow-md" : "text-muted-foreground hover:bg-muted/50"
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -59,10 +64,10 @@ export function MinimalSidebar() {
       </nav>
 
       {/* User section */}
-      <div className="p-4 border-t border-gray-200">
+      <div className="p-4 border-t border-border">
         <Button 
           variant="ghost" 
-          className="w-full justify-start gap-3 h-10 font-normal text-gray-700 hover:bg-gray-100"
+          className="w-full justify-start gap-3 h-10 font-normal text-muted-foreground hover:bg-muted/50 transition-all duration-200"
           onClick={() => window.location.href = '/api/logout'}
         >
           Sign Out

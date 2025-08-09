@@ -13,7 +13,7 @@ import Accounts from "@/pages/accounts";
 import Analytics from "@/pages/analytics";
 import SettingsPage from "@/pages/settings";
 
-import LeadsMinimal from "@/pages/leads-minimal";
+import LeadsProfessional from "@/pages/leads-professional";
 import NotFound from "@/pages/not-found";
 import { MinimalSidebar } from "@/components/layout/minimal-sidebar";
 
@@ -36,7 +36,7 @@ function Router() {
       {!isAuthenticated ? (
         <Route path="/" component={LoginPage} />
       ) : (
-        <div className="flex h-screen bg-gray-50">
+        <div className="flex h-screen">
           <MinimalSidebar />
           <div className="flex-1 overflow-y-auto">
             <Switch>
@@ -46,7 +46,7 @@ function Router() {
               <Route path="/campaigns/configure" component={ConfigureCampaign} />
               <Route path="/accounts" component={Accounts} />
               <Route path="/analytics" component={Analytics} />
-              <Route path="/leads" component={LeadsMinimal} />
+              <Route path="/leads" component={LeadsProfessional} />
               <Route path="/settings" component={SettingsPage} />
               <Route component={NotFound} />
             </Switch>

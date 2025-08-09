@@ -14,7 +14,7 @@ export default function CampaignsMinimal() {
     queryKey: ["/api/campaigns"],
   });
 
-  const campaignList = campaigns || [];
+  const campaignList = Array.isArray(campaigns) ? campaigns : [];
 
   const columns = [
     {
@@ -66,14 +66,14 @@ export default function CampaignsMinimal() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       <MinimalHeader 
         title="Campaigns"
         subtitle="Manage your outreach campaigns"
         actions={headerActions}
       />
       
-      <div className="p-6">
+      <div className="p-6 animate-fade-in">
         <DataTable
           columns={columns}
           data={campaignList}

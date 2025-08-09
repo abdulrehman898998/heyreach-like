@@ -1,100 +1,108 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DataTable } from "@/components/ui/data-table";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { ProfessionalHeader } from "@/components/layout/professional-header";
+import { MinimalHeader } from "@/components/layout/minimal-header";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
-import { cn } from "@/lib/utils";
-import {
-  Upload,
-  Download,
-  FileSpreadsheet,
-  Users,
-  CheckCircle,
-  AlertCircle,
-  Trash2,
-  Eye,
-  Plus,
-  Database,
-  Target
-} from "lucide-react";
+import { Upload, Users, FileText, Trash2, CheckCircle } from "lucide-react";
 
-interface LeadFile {
-  id: number;
+interface CSVColumn {
   name: string;
-  originalName: string;
-  totalRows: number;
-  validRows: number;
-  invalidRows: number;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  uploadedAt: string;
-  selectedColumns: string[];
+  sampleValue: string;
 }
 
 export default function LeadsProfessional() {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [dragActive, setDragActive] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
+  // File upload state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [csvColumns, setCsvColumns] = useState<CSVColumn[]>([]);
+  const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [showColumnSelection, setShowColumnSelection] = useState(false);
 
-  // Fetch lead files
-  const { data: leadFiles, isLoading } = useQuery({
+  // Fetch leads
+  const { data: leadsData, isLoading } = useQuery({
     queryKey: ["/api/leads"],
   });
 
+  const leadFiles = Array.isArray(leadsData) ? leadsData : [];
+
+  // Parse CSV for column selection
+  const parseCSVForColumns = (file: File): Promise<CSVColumn[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = e.target?.result as string;
+          const lines = text.split('\n').filter(line => line.trim());
+          
+          if (lines.length < 2) {
+            reject(new Error('CSV must have at least a header and one data row'));
+            return;
+          }
+
+          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+          const firstDataRow = lines[1].split(',').map(d => d.trim().replace(/"/g, ''));
+
+          const columns: CSVColumn[] = headers.map((header, index) => ({
+            name: header,
+            sampleValue: firstDataRow[index] || 'N/A'
+          }));
+
+          resolve(columns);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsText(file);
+    });
+  };
+
   // Upload mutation
   const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
-      setIsUploading(true);
+    mutationFn: async (data: { file: File; columns: string[] }) => {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', data.file);
+      formData.append('selectedColumns', JSON.stringify(data.columns));
       
-      // Simulate upload progress
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + 10, 90));
-      }, 200);
+      const response = await fetch('/api/leads/upload', {
+        method: 'POST',
+        body: formData,
+      });
       
-      try {
-        const response = await apiRequest('/api/leads/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        
-        clearInterval(progressInterval);
-        setUploadProgress(100);
-        
-        return response;
-      } catch (error) {
-        clearInterval(progressInterval);
-        throw error;
-      } finally {
-        setTimeout(() => {
-          setIsUploading(false);
-          setUploadProgress(0);
-        }, 1000);
+      if (!response.ok) {
+        throw new Error('Upload failed');
       }
+      
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      setSelectedFile(null);
+      setCsvColumns([]);
+      setSelectedColumns([]);
+      setShowColumnSelection(false);
+      setIsUploading(false);
       toast({
-        title: "File uploaded successfully",
-        description: "Your CSV file has been processed and leads have been imported.",
+        title: "Success",
+        description: "Leads uploaded successfully",
       });
     },
-    onError: (error: any) => {
+    onError: (error) => {
+      setIsUploading(false);
       toast({
-        title: "Upload failed",
-        description: error.message || "Failed to upload file. Please try again.",
+        title: "Error",
+        description: "Failed to upload leads",
         variant: "destructive",
       });
     },
@@ -102,68 +110,67 @@ export default function LeadsProfessional() {
 
   // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      return await apiRequest(`/api/leads/${id}`, {
+    mutationFn: async (leadFileId: number) => {
+      const response = await fetch(`/api/leads/${leadFileId}`, {
         method: 'DELETE',
       });
+      if (!response.ok) {
+        throw new Error('Delete failed');
+      }
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       toast({
-        title: "Lead file deleted",
-        description: "The lead file has been successfully removed.",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Delete failed",
-        description: "Failed to delete lead file. Please try again.",
-        variant: "destructive",
+        title: "Success",
+        description: "Lead file deleted",
       });
     },
   });
 
-  const files: LeadFile[] = leadFiles?.files || [];
-
-  // Handle file upload
-  const handleFileUpload = (file: File) => {
-    if (!file.name.endsWith('.csv')) {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === 'text/csv') {
+      setSelectedFile(file);
+      try {
+        const columns = await parseCSVForColumns(file);
+        setCsvColumns(columns);
+        setSelectedColumns(columns.map(col => col.name)); // Select all by default
+        setShowColumnSelection(true);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to parse CSV file",
+          variant: "destructive",
+        });
+      }
+    } else {
       toast({
-        title: "Invalid file type",
-        description: "Please upload a CSV file.",
+        title: "Error",
+        description: "Please select a CSV file",
         variant: "destructive",
       });
-      return;
-    }
-
-    uploadMutation.mutate(file);
-  };
-
-  // Drag and drop handlers
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
     }
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileUpload(e.dataTransfer.files[0]);
-    }
+  const handleColumnToggle = (columnName: string) => {
+    setSelectedColumns(prev => 
+      prev.includes(columnName) 
+        ? prev.filter(col => col !== columnName)
+        : [...prev, columnName]
+    );
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    if (e.target.files && e.target.files[0]) {
-      handleFileUpload(e.target.files[0]);
+  const handleUpload = () => {
+    if (selectedFile && selectedColumns.length > 0) {
+      setIsUploading(true);
+      uploadMutation.mutate({ file: selectedFile, columns: selectedColumns });
+    } else {
+      toast({
+        title: "Error",
+        description: "Please select at least one column",
+        variant: "destructive",
+      });
     }
   };
 
@@ -172,238 +179,155 @@ export default function LeadsProfessional() {
     {
       key: 'name',
       title: 'File Name',
-      render: (value: string, row: LeadFile) => (
-        <div>
-          <div className="flex items-center gap-2">
-            <FileSpreadsheet className="h-4 w-4 text-green-600" />
-            <span className="font-medium">{value}</span>
-          </div>
-          <div className="text-xs text-muted-foreground mt-1">
-            {row.originalName}
-          </div>
+      render: (value: string) => (
+        <div className="flex items-center gap-2">
+          <FileText className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium">{value}</span>
         </div>
       )
-    },
-    {
-      key: 'status',
-      title: 'Status',
-      render: (value: string) => <StatusBadge status={value as any} />
     },
     {
       key: 'totalRows',
-      title: 'Total Leads',
-      render: (value: number, row: LeadFile) => (
-        <div className="text-center">
-          <div className="font-medium">{value}</div>
-          <div className="text-xs text-muted-foreground">
-            {row.validRows} valid, {row.invalidRows} invalid
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'selectedColumns',
-      title: 'Columns',
-      render: (value: string[]) => (
-        <div className="flex flex-wrap gap-1">
-          {value?.slice(0, 3).map((col, index) => (
-            <Badge key={index} variant="secondary" className="text-xs">
-              {col}
-            </Badge>
-          ))}
-          {value?.length > 3 && (
-            <Badge variant="outline" className="text-xs">
-              +{value.length - 3}
-            </Badge>
-          )}
-        </div>
-      )
+      title: 'Leads',
+      render: (value: number) => <span>{value}</span>
     },
     {
       key: 'uploadedAt',
       title: 'Uploaded',
       render: (value: string) => (
-        <div className="text-sm text-muted-foreground">
+        <span className="text-muted-foreground">
           {new Date(value).toLocaleDateString()}
-        </div>
+        </span>
       )
     },
     {
-      key: 'actions',
-      title: '',
-      render: (_: any, row: LeadFile) => (
-        <div className="flex gap-1">
-          <Button variant="ghost" size="sm">
-            <Eye className="h-3 w-3" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => deleteMutation.mutate(row.id)}
-            disabled={deleteMutation.isPending}
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
-        </div>
+      key: 'id',
+      title: 'Actions',
+      render: (value: number) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => deleteMutation.mutate(value)}
+          disabled={deleteMutation.isPending}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
       )
     }
   ];
 
   const headerActions = (
-    <div className="flex gap-2">
-      <Button variant="outline">
-        <Download className="h-4 w-4 mr-2" />
-        Export Template
-      </Button>
-      <Button onClick={() => fileInputRef.current?.click()}>
-        <Plus className="h-4 w-4 mr-2" />
-        Upload CSV
-      </Button>
-    </div>
+    <Button onClick={() => setLocation('/campaigns/create')} disabled={leadFiles.length === 0}>
+      Create Campaign
+    </Button>
   );
 
   return (
-    <div className="min-h-screen bg-background">
-      <ProfessionalHeader 
-        title="Lead Management"
-        subtitle="Upload and manage your contact lists for outreach campaigns"
+    <div className="min-h-screen">
+      <MinimalHeader 
+        title="Leads"
+        subtitle="Upload and manage your contact lists"
         actions={headerActions}
       />
       
       <div className="p-6 space-y-6 animate-fade-in">
         {/* Upload Section */}
-        <Card className="border-2 border-dashed border-border hover:border-primary/50 transition-colors">
-          <CardContent className="p-8">
-            <div
-              className={cn(
-                "relative rounded-lg border-2 border-dashed transition-colors p-8 text-center",
-                dragActive ? "border-primary bg-primary/5" : "border-border",
-                isUploading && "pointer-events-none"
-              )}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv"
-                onChange={handleInputChange}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                disabled={isUploading}
-              />
-              
-              {isUploading ? (
-                <div className="space-y-4">
-                  <LoadingSpinner size="lg" />
-                  <div>
-                    <h3 className="text-lg font-semibold">Uploading file...</h3>
-                    <p className="text-muted-foreground">Processing your CSV file</p>
-                  </div>
-                  <div className="max-w-xs mx-auto">
-                    <Progress value={uploadProgress} className="h-2" />
-                    <p className="text-sm text-muted-foreground mt-2">{uploadProgress}% complete</p>
+        <Card className="card-gradient">
+          <CardHeader>
+            <CardTitle className="text-lg">Upload CSV File</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!showColumnSelection ? (
+              <>
+                <div className="flex items-center gap-4">
+                  <Input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleFileSelect}
+                    className="flex-1"
+                  />
+                </div>
+                
+                <div className="text-sm text-muted-foreground">
+                  Upload a CSV file with columns like "Profiles" (Instagram URLs) and "messages" (custom messages).
+                </div>
+              </>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span>File: {selectedFile?.name}</span>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium mb-3">Select columns to import:</h4>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {csvColumns.map((column) => (
+                      <Card key={column.name} className="p-3 hover-lift">
+                        <div className="flex items-start space-x-3">
+                          <Checkbox
+                            checked={selectedColumns.includes(column.name)}
+                            onCheckedChange={() => handleColumnToggle(column.name)}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm">{column.name}</div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              Sample: {column.sampleValue}
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
                   </div>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="mx-auto w-16 h-16 bg-primary/10 rounded-lg flex items-center justify-center">
-                    <Upload className="h-8 w-8 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold">Drop your CSV file here</h3>
-                    <p className="text-muted-foreground">or click to browse from your computer</p>
-                  </div>
-                  <div className="flex flex-wrap justify-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      CSV format
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      Max 10MB
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      UTF-8 encoding
-                    </div>
-                  </div>
+                
+                <div className="flex gap-3">
+                  <Button 
+                    onClick={handleUpload}
+                    disabled={isUploading || selectedColumns.length === 0}
+                    className="primary-gradient"
+                  >
+                    {isUploading ? (
+                      <LoadingSpinner size="sm" />
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Import {selectedColumns.length} Column{selectedColumns.length !== 1 ? 's' : ''}
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowColumnSelection(false);
+                      setSelectedFile(null);
+                      setCsvColumns([]);
+                      setSelectedColumns([]);
+                    }}
+                  >
+                    Cancel
+                  </Button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        {/* Stats Cards */}
-        {files.length > 0 && (
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <FileSpreadsheet className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Files</p>
-                    <p className="text-2xl font-bold">{files.length}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                    <Users className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Leads</p>
-                    <p className="text-2xl font-bold">
-                      {files.reduce((sum, file) => sum + file.totalRows, 0)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <Target className="h-5 w-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Ready for Campaigns</p>
-                    <p className="text-2xl font-bold">
-                      {files.filter(file => file.status === 'completed').length}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Files Table */}
-        <DataTable
-          title="Uploaded Files"
-          columns={columns}
-          data={files}
-          loading={isLoading}
-          emptyState={{
-            icon: <Database className="h-12 w-12" />,
-            title: "No lead files uploaded",
-            description: "Upload your first CSV file to start building your contact database",
-            action: (
-              <Button onClick={() => fileInputRef.current?.click()}>
-                <Upload className="h-4 w-4 mr-2" />
-                Upload CSV File
-              </Button>
-            )
-          }}
-        />
+        {/* Leads Table */}
+        <Card className="card-gradient">
+          <DataTable
+            title="Uploaded Files"
+            columns={columns}
+            data={leadFiles}
+            loading={isLoading}
+            emptyState={{
+              icon: <Users className="h-12 w-12" />,
+              title: "No leads uploaded",
+              description: "Upload a CSV file to start creating campaigns",
+              action: null
+            }}
+          />
+        </Card>
       </div>
     </div>
   );

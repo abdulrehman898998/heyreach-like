@@ -28,8 +28,8 @@ export default function CreateCampaignMinimal() {
   const { data: leadsData } = useQuery({ queryKey: ["/api/leads"] });
   const { data: accountsData } = useQuery({ queryKey: ["/api/accounts"] });
 
-  const leadFiles = leadsData || [];
-  const accounts = accountsData || [];
+  const leadFiles = Array.isArray(leadsData) ? leadsData : [];
+  const accounts = Array.isArray(accountsData) ? accountsData : [];
 
   // Create campaign mutation
   const createMutation = useMutation({
@@ -90,17 +90,17 @@ export default function CreateCampaignMinimal() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       <MinimalHeader 
         title="Create Campaign"
         subtitle="Set up a new outreach campaign"
         actions={headerActions}
       />
       
-      <div className="p-6 max-w-2xl">
+      <div className="p-6 max-w-2xl animate-fade-in">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Campaign Name */}
-          <Card>
+          <Card className="card-gradient hover-lift">
             <CardHeader>
               <CardTitle>Campaign Details</CardTitle>
             </CardHeader>
@@ -117,7 +117,7 @@ export default function CreateCampaignMinimal() {
           </Card>
 
           {/* Lead File Selection */}
-          <Card>
+          <Card className="card-gradient hover-lift">
             <CardHeader>
               <CardTitle>Lead File</CardTitle>
             </CardHeader>
@@ -145,7 +145,7 @@ export default function CreateCampaignMinimal() {
           </Card>
 
           {/* Templates */}
-          <Card>
+          <Card className="card-gradient hover-lift">
             <CardHeader>
               <CardTitle>Message Templates</CardTitle>
             </CardHeader>
@@ -172,7 +172,7 @@ export default function CreateCampaignMinimal() {
           </Card>
 
           {/* Account Selection */}
-          <Card>
+          <Card className="card-gradient hover-lift">
             <CardHeader>
               <CardTitle>Instagram Accounts</CardTitle>
             </CardHeader>
@@ -206,7 +206,7 @@ export default function CreateCampaignMinimal() {
           {/* Submit */}
           <Button 
             type="submit" 
-            className="w-full"
+            className="w-full primary-gradient"
             disabled={createMutation.isPending}
           >
             {createMutation.isPending ? (
