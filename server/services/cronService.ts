@@ -59,8 +59,8 @@ class CronService {
           // - Rate limiting issues
           
           await storage.updateInstagramAccount(account.id, {
-            isHealthy: true,
-            lastHealthCheck: new Date()
+            healthScore: 100,
+            lastUsed: new Date()
           });
         }
       }

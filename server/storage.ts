@@ -338,5 +338,6 @@ export class DatabaseStorage {
   }
 }
 
-// Use proper database storage
-export const storage = new DatabaseStorage();
+// Use memory storage for development, database storage for production
+const useMemory = process.env.USE_MEMORY === '1' || !process.env.DATABASE_URL;
+export const storage = useMemory ? memoryStorage : new DatabaseStorage();
