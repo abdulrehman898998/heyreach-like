@@ -2,16 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { EmptyState } from "@/components/ui/empty-state";
+
 import { MinimalHeader } from "@/components/layout/minimal-header";
 import { 
   Plus, 
   TrendingUp, 
-  Users, 
-  MessageSquare, 
-  Target
+  Target,
+  Upload
 } from "lucide-react";
 
 export default function DashboardMinimal() {
@@ -19,34 +16,8 @@ export default function DashboardMinimal() {
 
   // Fetch data
   const { data: stats } = useQuery({ queryKey: ["/api/analytics/stats"] });
-  const { data: campaigns, isLoading } = useQuery({ queryKey: ["/api/campaigns"] });
 
   const dashboardStats = stats || {};
-  const campaignList = Array.isArray(campaigns) ? campaigns : [];
-
-  // Campaign table columns
-  const campaignColumns = [
-    {
-      key: 'name',
-      title: 'Campaign',
-      render: (value: string) => <span className="font-medium">{value}</span>
-    },
-    {
-      key: 'status',
-      title: 'Status',
-      render: (value: string) => <StatusBadge status={(value || 'pending') as any} />
-    },
-    {
-      key: 'leadsCount',
-      title: 'Leads',
-      render: (value: number) => <span>{value || 0}</span>
-    },
-    {
-      key: 'messagesSent',
-      title: 'Messages',
-      render: (value: number) => <span>{value || 0}</span>
-    }
-  ];
 
   const headerActions = (
     <Button onClick={() => setLocation('/campaigns/create')}>
@@ -103,24 +74,32 @@ export default function DashboardMinimal() {
           </Card>
         </div>
 
-        {/* Campaigns Table */}
-        <DataTable
-          title="Recent Campaigns"
-          columns={campaignColumns}
-          data={campaignList}
-          loading={isLoading}
-          emptyState={{
-            icon: <Target className="h-12 w-12" />,
-            title: "No campaigns",
-            description: "Create your first campaign to get started",
-            action: (
-              <Button onClick={() => setLocation('/campaigns/create')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Campaign
+        {/* Quick Actions */}
+        <Card className="card-gradient">
+          <CardHeader>
+            <CardTitle className="text-lg">Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Button 
+                onClick={() => setLocation('/leads')}
+                variant="outline"
+                className="h-16 flex flex-col gap-2 hover-lift"
+              >
+                <Upload className="h-5 w-5" />
+                <span>Upload Leads</span>
               </Button>
-            )
-          }}
-        />
+              <Button 
+                onClick={() => setLocation('/campaigns/create')}
+                variant="outline"
+                className="h-16 flex flex-col gap-2 hover-lift"
+              >
+                <Target className="h-5 w-5" />
+                <span>Create Campaign</span>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
