@@ -38,6 +38,49 @@ export default function CreateCampaign() {
   const [profileUrlCursorPosition, setProfileUrlCursorPosition] = useState(0);
   const [previewData, setPreviewData] = useState<Record<string, string>>({});
 
+  // Generate sample data for preview
+  const generatePreviewData = (cols: Column[]) => {
+    const sampleData: Record<string, string> = {};
+    cols.forEach((col: Column) => {
+      switch (col.value.toLowerCase()) {
+        case 'username':
+          sampleData[col.value] = 'albert_cancook';
+          break;
+        case 'profileurl':
+        case 'profiles':
+          sampleData[col.value] = 'https://instagram.com/albert_cancook/';
+          break;
+        case 'messages':
+        case 'message':
+          sampleData[col.value] = 'Hey Albert! Your content is amazing!';
+          break;
+        case 'description':
+          sampleData[col.value] = 'Food content creator specializing in quick recipes';
+          break;
+        case 'profilepic':
+          sampleData[col.value] = 'https://example.com/albert.jpg';
+          break;
+        default:
+          sampleData[col.value] = `Sample ${col.label}`;
+      }
+    });
+    return sampleData;
+  };
+
+  // Generate real-time preview
+  const generatePreview = (template: string, data: Record<string, string>): string => {
+    let result = template;
+    
+    // Handle {{variable}} syntax
+    const variableRegex = /\{\{([^}]+)\}\}/g;
+    result = result.replace(variableRegex, (match, variable) => {
+      const key = variable.trim();
+      return data[key] || match;
+    });
+    
+    return result;
+  };
+
   useEffect(() => {
     fetchColumns();
     fetchAccounts();
@@ -58,10 +101,7 @@ export default function CreateCampaign() {
           label: col
         }));
         setColumns(columnsList);
-        const sampleData: Record<string, string> = {};
-        columnsList.forEach((col: Column) => {
-          sampleData[col.value] = `Sample ${col.label}`;
-        });
+        const sampleData = generatePreviewData(columnsList);
         setPreviewData(sampleData);
       }
     } catch (error) {
@@ -303,6 +343,16 @@ export default function CreateCampaign() {
                 </div>
               )}
             </div>
+            
+            {/* Profile URL Preview */}
+            {profileUrl && profileUrl.includes('{{') && (
+              <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                <Label className="text-sm font-medium text-blue-800">Preview:</Label>
+                <div className="text-sm text-blue-700 break-all">
+                  {generatePreview(profileUrl, previewData)}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -340,22 +390,31 @@ export default function CreateCampaign() {
                 </div>
               )}
             </div>
+            
+            {/* Message Preview */}
+            {message && message.includes('{{') && (
+              <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-md">
+                <Label className="text-sm font-medium text-green-800">Preview:</Label>
+                <div className="text-sm text-green-700 whitespace-pre-wrap">
+                  {generatePreview(message, previewData)}
+                </div>
+              </div>
+            )}
           </div>
 
-          {profileUrl && (
+          {/* Sample Data Display */}
+          {columns.length > 0 && (
             <div className="space-y-2">
-              <Label>Profile URL Preview</Label>
-              <div className="rounded-md border p-4 bg-slate-50">
-                <p className="text-sm">{getProfileUrlPreview()}</p>
-              </div>
-            </div>
-          )}
-
-          {message && (
-            <div className="space-y-2">
-              <Label>Message Preview</Label>
-              <div className="rounded-md border p-4 bg-slate-50">
-                <p className="text-sm whitespace-pre-wrap">{getMessagePreview()}</p>
+              <Label className="text-sm font-medium text-slate-600">Available Variables (Sample Data):</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-slate-50 border rounded-md">
+                {columns.map((column) => (
+                  <div key={column.value} className="flex items-center justify-between text-xs">
+                    <span className="font-mono text-blue-600">{`{{${column.value}}}`}</span>
+                    <span className="text-slate-600 truncate ml-2">
+                      {previewData[column.value]}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
