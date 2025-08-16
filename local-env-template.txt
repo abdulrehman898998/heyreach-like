@@ -1,8 +1,0 @@
-# Copy this to .env file and fill in your actual values
-
-# Database Configuration
-# Local PostgreSQL with Docker:
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/instagram_automation
-
-# Environment
-NODE_ENV=development

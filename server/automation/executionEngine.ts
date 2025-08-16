@@ -18,22 +18,22 @@ export class CampaignExecutionEngine {
       throw new Error("Campaign is already running");
     }
 
-    const campaign = await storage.getCampaignById(campaignId);
+    const campaign = await storage.campaigns.getCampaignById(campaignId);
     if (!campaign) {
       throw new Error("Campaign not found");
     }
 
     // Update campaign status to running
-    await storage.updateCampaign(campaignId, { status: "running" });
+    await storage.campaigns.updateCampaign(campaignId, { status: "running" });
 
     // Get all leads for this campaign
-    const campaignLeads = await storage.getCampaignLeadsByCampaign(campaignId);
+    const campaignLeads = await storage.campaignLeads.getCampaignLeadsByCampaign(campaignId);
     if (campaignLeads.length === 0) {
       throw new Error("No leads found for campaign. Please add leads first.");
     }
 
     // Get user's Instagram accounts
-    const accounts = await storage.getInstagramAccountsByUser(campaign.userId!);
+    const accounts = await storage.accounts.getInstagramAccountsByUser(campaign.userId!);
     const activeAccounts = accounts.filter(acc => acc.isActive && (acc.healthScore || 0) > 50);
     
     if (activeAccounts.length === 0) {
@@ -50,7 +50,7 @@ export class CampaignExecutionEngine {
     this.processCampaignLeads(campaign, campaignLeads, activeAccounts, abortController.signal)
       .catch(error => {
         console.error(`Campaign ${campaignId} error:`, error);
-        storage.updateCampaign(campaignId, { status: "failed" });
+        storage.campaigns.updateCampaign(campaignId, { status: "failed" });
       })
       .finally(() => {
         this.runningCampaigns.delete(campaignId);
@@ -66,7 +66,7 @@ export class CampaignExecutionEngine {
     const running = this.runningCampaigns.get(campaignId);
     if (running) {
       running.abort();
-      await storage.updateCampaign(campaignId, { status: "paused" });
+      await storage.campaigns.updateCampaign(campaignId, { status: "paused" });
       console.log(`Stopped campaign ${campaignId}`);
     }
   }
@@ -108,7 +108,7 @@ export class CampaignExecutionEngine {
         }
 
         // Get the actual lead data
-        const lead = await storage.getLeadById(campaignLead.leadId!);
+        const lead = await storage.leads.getLeadById(campaignLead.leadId!);
         if (!lead) {
           console.error(`Lead ${campaignLead.leadId} not found`);
           continue;
@@ -122,7 +122,7 @@ export class CampaignExecutionEngine {
           this.incrementDailyCount(account);
           
           // Update campaign lead status
-          await storage.updateCampaignLead(campaignLead.id, {
+          await storage.campaignLeads.updateCampaignLead(campaignLead.id, {
             status: "sent",
             sentAt: new Date(),
             accountId: account.id
@@ -131,7 +131,7 @@ export class CampaignExecutionEngine {
           console.log(`Sent message to ${lead.profileUrl} using account ${account.username}`);
         } else {
           failedCount++;
-          await storage.updateCampaignLead(campaignLead.id, {
+          await storage.campaignLeads.updateCampaignLead(campaignLead.id, {
             status: "failed",
             errorMessage: "Failed to send message",
             accountId: account.id
@@ -139,7 +139,7 @@ export class CampaignExecutionEngine {
         }
 
         // Update campaign stats
-        await storage.updateCampaign(campaign.id, {
+        await storage.campaigns.updateCampaign(campaign.id, {
           sentCount: processedCount,
           failedCount: failedCount
         });
@@ -153,7 +153,7 @@ export class CampaignExecutionEngine {
         console.error(`Error processing lead ${campaignLead.id}:`, error);
         failedCount++;
         
-        await storage.updateCampaignLead(campaignLead.id, {
+        await storage.campaignLeads.updateCampaignLead(campaignLead.id, {
           status: "failed",
           errorMessage: error instanceof Error ? error.message : "Unknown error"
         });
@@ -161,7 +161,7 @@ export class CampaignExecutionEngine {
     }
 
     // Mark campaign as completed
-    await storage.updateCampaign(campaign.id, { 
+    await storage.campaigns.updateCampaign(campaign.id, { 
       status: "completed",
       sentCount: processedCount,
       failedCount: failedCount
@@ -201,7 +201,7 @@ export class CampaignExecutionEngine {
       await this.simulateMessageSending(lead.profileUrl, message, account.username);
       
       // Update account's last used timestamp
-      await storage.updateInstagramAccount(account.id, {
+              await storage.accounts.updateInstagramAccount(account.id, {
         lastUsed: new Date()
       });
 

@@ -1,34 +1,56 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
-import * as schema from "@shared/schema";
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
+import * as schema from '../shared/schema.js';
+import { sql } from 'drizzle-orm';
 
-neonConfig.webSocketConstructor = ws;
+export let db: ReturnType<typeof drizzle>;
 
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
-}
-
-const connectionString = process.env.DATABASE_URL;
-console.log('Connecting to database...');
-
-export const pool = new Pool({ 
-  connectionString,
-  max: 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-});
-
-export const db = drizzle({ client: pool, schema });
-
-// Test the connection
-pool.connect()
-  .then(client => {
-    console.log('Database connected successfully');
-    client.release();
-  })
-  .catch(err => {
-    console.error('Database connection error:', err);
+// Create a query builder with proper relations
+export const createQueryBuilder = () => {
+  return drizzle(db, {
+    schema: {
+      users,
+      accounts,
+      proxies,
+      campaigns,
+      leads,
+      messages,
+      action_logs,
+      notifications,
+      selector_registry,
+      message_templates,
+    },
   });
+};
+
+export const initializeDatabase = async () => {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL environment variable is required');
+  }
+
+  const client = postgres(process.env.DATABASE_URL);
+  db = drizzle(client, { schema });
+  
+  console.log('✅ Database connection established');
+  return db;
+};
+
+export const getDatabase = () => {
+  if (!db) {
+    throw new Error('Database not initialized. Call initializeDatabase() first.');
+  }
+  return db;
+};
+
+export const checkDatabaseHealth = async (): Promise<boolean> => {
+  try {
+    const database = getDatabase();
+    await database.execute(sql`SELECT 1`);
+    return true;
+  } catch (error) {
+    console.error('Database health check failed:', error);
+    return false;
+  }
+};
+
+export { schema };

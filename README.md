@@ -1,191 +1,322 @@
-# Social Metrics Dashboard
+# HeyReach - Instagram DM Automation Platform
 
-A comprehensive Instagram automation and analytics platform for managing campaigns, leads, and messaging automation.
+A comprehensive SaaS platform for Instagram DM outreach automation with advanced proxy management, AI-powered recovery, and manual verification capabilities.
 
-## Features
+## 🚀 Features
 
-### 🎯 Campaign Management
-- Create and manage Instagram DM campaigns
-- Profile URL-based targeting
-- Template-based messaging with variable substitution
-- Multi-account campaign execution
-- Real-time campaign analytics
+- **Instagram DM Automation**: Automated sending of personalized DMs
+- **Proxy Management**: Residential/mobile proxy support with geo-matching
+- **AI-Powered Recovery**: MCP/LLM integration for handling selector changes
+- **Manual Verification**: User-friendly OTP/captcha handling
+- **Account Warmup**: AutoIGDM-style 48-72 hour warmup strategy
+- **Rate Limiting**: Intelligent spacing and daily limits
+- **Real-time Monitoring**: Live stats and health checks
+- **Secure Authentication**: JWT + AES-GCM encryption
 
-### 📊 Lead Management
-- CSV import with intelligent column mapping
-- Custom field support
-- Lead file management and persistence
-- Preview and validation before import
+## 🏗️ Architecture
 
-### 💬 Message Templates
-- Dynamic template creation with spintax support
-- Variable substitution for personalization
-- Template preview and testing
-- Campaign-specific template assignment
+- **Monorepo**: pnpm workspaces with shared packages
+- **Backend**: Node.js + Express + TypeScript
+- **Database**: PostgreSQL + Drizzle ORM
+- **Queue System**: BullMQ + Redis
+- **Browser Automation**: Playwright (Chromium)
+- **Storage**: MinIO (S3-compatible)
+- **Frontend**: React + Vite + Tailwind CSS
 
-### 🔐 Account Management
-- Instagram account integration
-- Account health monitoring
-- Multi-account support for campaigns
+## 📋 Prerequisites
 
-### 📈 Analytics Dashboard
-- Real-time campaign statistics
-- Message delivery tracking
-- Performance metrics
-- Activity logs
+- Node.js 18+ and pnpm 8.15.0+
+- Docker and Docker Compose
+- PostgreSQL (via Docker)
+- Redis (via Docker)
+- MinIO (via Docker)
 
-## Recent Updates
+## 🛠️ Quick Start
 
-### ✅ Column Selection for CSV Import
-- **New Feature**: Users can now select which columns to import from CSV files
-- **Smart Mapping**: Automatic column detection with suggested mappings
-- **Preview Mode**: Real-time preview of mapped data before import
-- **Flexible Fields**: Support for required (Profile URL) and optional (Name, Custom Fields) mappings
+### 1. Clone and Setup
 
-### ✅ Campaign Creation Improvements
-- **Profile URL Field**: Changed from "Campaign Name" to "Profile URL" for better clarity
-- **Auto-naming**: Campaigns are automatically named as "Campaign for {profileUrl}"
-- **Enhanced UX**: Better form validation and user feedback
+```bash
+git clone <repository-url>
+cd heyreach-like
+pnpm install
+```
 
-## Quick Start
+### 2. Environment Configuration
 
-### Prerequisites
-- Node.js 18+ 
-- PostgreSQL database
-- Docker (optional, for local database)
+Copy the example environment file and configure it:
 
-### Installation
+```bash
+cp .env.example .env
+```
 
-1. **Clone the repository**
-   ```bash
-   git clone <your-repo-url>
-   cd SocialMetricsDashboard
-   ```
+Update the `.env` file with your configuration:
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+```env
+# Postgres
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/heyreach
 
-3. **Set up environment variables**
-   ```bash
-   cp local-env-template.txt .env
-   # Edit .env with your database credentials
-   ```
+# Redis
+REDIS_URL=redis://localhost:6379
 
-4. **Set up database**
-   ```bash
-   # Using Docker (recommended)
-   docker run --name postgres-instagram -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=instagram_automation -p 5432:5432 -d postgres
-   
-   # Or use your existing PostgreSQL instance
-   ```
+# S3 (MinIO)
+S3_ENDPOINT=http://localhost:9000
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
+S3_BUCKET=heyreach-artifacts
+S3_REGION=us-east-1
 
-5. **Push database schema**
-   ```bash
-   npm run db:push
-   ```
+# App
+APP_URL=http://localhost:5173
+JWT_SECRET=your-super-secret-jwt-key-at-least-32-characters-long
+COOKIE_ENC_KEY_BASE64=dGVzdC1jb29raWUtZW5jcnlwdGlvbi1rZXktMzItY2hhcnM=
 
-6. **Start the development server**
-   ```bash
-   npm run dev
-   ```
+# Playwright
+PLAYWRIGHT_HEADLESS=true
+DEFAULT_UA=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+DEFAULT_TIMEZONE=Europe/London
+DEFAULT_LOCALE=en-GB
 
-7. **Access the application**
-   - Frontend: http://localhost:5001
-   - Backend API: http://localhost:5001/api
+# Proxy/IP Intel
+REQUIRE_RESIDENTIAL=true
+ALLOW_MOBILE=true
+ALLOW_DATACENTER=false
+ASN_DENYLIST=16509,13335,15169,16276,14061,14618
+IP_INTEL_CACHE_TTL=1800
+PROXY_HEALTH_TIMEOUT_MS=2500
+MAX_PROXY_ROTATIONS_PER_24H=1
+RISK_PAUSE_THRESHOLD=60
+```
 
-## Usage
+### 3. Start Infrastructure
 
-### Importing Leads
+```bash
+# Start all services (PostgreSQL, Redis, MinIO)
+pnpm docker:up
+```
 
-1. **Navigate to Leads page**
-2. **Upload CSV file** - The system will automatically detect columns
-3. **Map columns** - Select which columns map to:
-   - Profile URL (required)
-   - Name (optional)
-   - Custom fields (optional)
-4. **Preview data** - Review the mapped data before import
-5. **Import leads** - Click "Upload X Leads" to finalize
+### 4. Database Setup
 
-### Creating Campaigns
+```bash
+# Push database schema
+pnpm db:push
 
-1. **Navigate to Campaigns page**
-2. **Click "Create Campaign"**
-3. **Enter Profile URL** - The target Instagram profile
-4. **Select message template** - Choose from your templates
-5. **Select accounts** - Choose which Instagram accounts to use
-6. **Review and create** - Campaign will be automatically named
+# Seed with test data
+pnpm db:seed
+```
 
-### Managing Templates
+### 5. Start Development Servers
 
-1. **Navigate to Templates page**
-2. **Create new template** with variables like `{{name}}`, `{{company}}`
-3. **Use spintax** for message variations: `{Hello|Hi|Hey} {{name}}`
-4. **Test templates** with sample data
-5. **Assign to campaigns** during campaign creation
+```bash
+# Start all services in development mode
+pnpm dev
+```
 
-## API Endpoints
+This will start:
+- **Backend API**: http://localhost:3000
+- **Frontend**: http://localhost:5173
+- **Health Check**: http://localhost:3000/health
 
-### Leads
-- `POST /api/leads/upload` - Upload CSV with column mapping
-- `GET /api/leads/files` - Get uploaded lead files
-- `GET /api/leads/files/:id/leads` - Get leads from specific file
+## 🧪 Testing the Application
 
-### Campaigns
-- `POST /api/campaigns` - Create new campaign
-- `GET /api/campaigns` - Get user campaigns
-- `GET /api/campaigns/:id` - Get specific campaign
+### 1. Frontend Testing
 
-### Templates
-- `POST /api/templates` - Create message template
-- `GET /api/templates` - Get user templates
-- `GET /api/templates/columns` - Get available template columns
+1. Open http://localhost:5173 in your browser
+2. Use the test credentials:
+   - **Email**: `test@heyreach.com`
+   - **Password**: `password123`
+3. Explore the dashboard and test the authentication flow
+
+### 2. API Testing
+
+Test the backend API endpoints:
+
+```bash
+# Health check
+curl http://localhost:3000/health
+
+# Register a new user
+curl -X POST http://localhost:3000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"newuser@example.com","password":"password123"}'
+
+# Login
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@heyreach.com","password":"password123"}'
+
+# Get user profile (with token from login)
+curl -X GET http://localhost:3000/api/auth/me \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+# Get accounts
+curl -X GET http://localhost:3000/api/accounts \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+
+# Get campaigns
+curl -X GET http://localhost:3000/api/campaigns \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```
+
+### 3. Database Verification
+
+Connect to the database to verify the seeded data:
+
+```bash
+# Connect to PostgreSQL container
+docker exec -it heyreach-postgres psql -U postgres -d heyreach
+
+# View tables
+\dt
+
+# Check users
+SELECT * FROM users;
+
+# Check accounts
+SELECT * FROM accounts;
+
+# Check campaigns
+SELECT * FROM campaigns;
+```
+
+## 📊 Available Endpoints
+
+### Authentication
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - User login
+- `GET /api/auth/me` - Get current user
 
 ### Accounts
-- `POST /api/accounts` - Add Instagram account
-- `GET /api/accounts` - Get user accounts
+- `GET /api/accounts` - List user's accounts
+- `POST /api/accounts` - Create new account
+- `GET /api/accounts/:id` - Get account details
+- `POST /api/accounts/:id/relogin` - Force re-login
+- `GET /api/accounts/:id/verify` - Get verification session
+- `POST /api/accounts/:id/assign-proxy` - Assign proxy
+- `POST /api/accounts/:id/rotate-proxy` - Rotate proxy
 
-## Development
+### Campaigns
+- `GET /api/campaigns` - List user's campaigns
+- `POST /api/campaigns` - Create new campaign
+- `GET /api/campaigns/:id` - Get campaign details
+- `POST /api/campaigns/:id/start` - Start campaign
+- `POST /api/campaigns/:id/pause` - Pause campaign
+- `GET /api/campaigns/:id/status` - Get campaign status
+- `DELETE /api/campaigns/:id` - Delete campaign
+
+### Leads
+- `GET /api/leads` - List user's leads
+- `POST /api/leads/upload` - Upload CSV leads
+- `GET /api/leads/:id` - Get lead details
+- `PUT /api/leads/:id` - Update lead
+- `DELETE /api/leads/:id` - Delete lead
+- `POST /api/leads/bulk-assign` - Bulk assign leads
+- `GET /api/leads/stats` - Get lead statistics
+
+### Proxies
+- `GET /api/proxies` - List all proxies
+- `POST /api/proxies` - Register new proxy
+- `GET /api/proxies/:id` - Get proxy details
+- `PUT /api/proxies/:id` - Update proxy
+- `DELETE /api/proxies/:id` - Delete proxy
+- `POST /api/proxies/:id/health-check` - Health check
+- `GET /api/proxies/stats` - Get proxy statistics
+
+### Notifications
+- `GET /api/notifications` - List notifications
+- `GET /api/notifications/unread-count` - Get unread count
+- `POST /api/notifications/:id/read` - Mark as read
+- `POST /api/notifications/read-all` - Mark all as read
+- `DELETE /api/notifications/:id` - Delete notification
+- `POST /api/notifications/clear-read` - Clear read notifications
+- `GET /api/notifications/stats` - Get notification statistics
+
+### Automation Stats
+- `GET /api/automation/stats` - Get automation statistics
+
+## 🔧 Development
 
 ### Project Structure
+
 ```
-├── client/                 # Frontend React application
-│   ├── src/
-│   │   ├── components/     # Reusable UI components
-│   │   ├── pages/         # Page components
-│   │   ├── hooks/         # Custom React hooks
-│   │   └── lib/           # Utility libraries
-├── server/                # Backend Node.js/Express application
-│   ├── routes/            # API route handlers
-│   ├── services/          # Business logic services
-│   ├── automation/        # Instagram automation
-│   └── scripts/           # Utility scripts
-├── shared/                # Shared code between frontend/backend
-│   └── schema.ts          # Database schema definitions
-└── migrations/            # Database migrations
+heyreach-like/
+├── apps/
+│   ├── web-api/          # Backend API server
+│   ├── worker/           # Background job processor (placeholder)
+│   └── frontend/         # React frontend
+├── packages/
+│   └── shared/           # Shared types, constants, schemas
+├── docker/               # Docker Compose configuration
+└── docs/                 # Documentation
 ```
 
-### Key Technologies
-- **Frontend**: React, TypeScript, Tailwind CSS, Vite
-- **Backend**: Node.js, Express, TypeScript
-- **Database**: PostgreSQL with Drizzle ORM
-- **Automation**: Playwright for browser automation
-- **Authentication**: Custom auth system with localStorage
+### Available Scripts
 
-### Running Tests
 ```bash
-# Test column selection functionality
-npx tsx test-column-selection-ui.js
+# Development
+pnpm dev                  # Start all services in development
+pnpm build               # Build all packages
+pnpm test                # Run tests
+pnpm lint                # Run linting
 
-# Test leads persistence
-npx tsx test-leads-persistence.js
+# Database
+pnpm db:push             # Push database schema
+pnpm db:seed             # Seed database with test data
 
-# Test working upload approach
-npx tsx test-working-approach.js
+# Docker
+pnpm docker:up           # Start all Docker services
+pnpm docker:down         # Stop all Docker services
+pnpm docker:logs         # View Docker logs
 ```
 
-## Contributing
+### Adding New Features
+
+1. **Backend API**: Add routes in `apps/web-api/src/routes/`
+2. **Database**: Update schema in `apps/web-api/drizzle/schema.ts`
+3. **Types**: Add interfaces in `packages/shared/src/types.ts`
+4. **Validation**: Add schemas in `packages/shared/src/zod.ts`
+5. **Frontend**: Add components in `apps/frontend/src/`
+
+## 🚀 Production Deployment
+
+### Environment Variables
+
+Ensure all production environment variables are properly configured:
+
+- Strong JWT secret (32+ characters)
+- Secure cookie encryption key (32-byte base64)
+- Production database URL
+- Production Redis URL
+- S3/MinIO credentials
+- Proxy configuration
+
+### Docker Deployment
+
+```bash
+# Build and start production services
+docker-compose -f docker/docker-compose.yml up --build -d
+
+# View logs
+docker-compose -f docker/docker-compose.yml logs -f
+```
+
+## 🔒 Security Features
+
+- **Authentication**: JWT tokens with secure expiration
+- **Encryption**: AES-GCM for sensitive data
+- **Rate Limiting**: Per-user and per-account limits
+- **Input Validation**: Zod schemas for all inputs
+- **CORS**: Configured for frontend domain
+- **Helmet**: Security headers
+- **Proxy Privacy**: IP masking and rotation
+
+## 📈 Monitoring
+
+- **Health Checks**: `/health` endpoint for all services
+- **Real-time Stats**: Queue depth, success rates, proxy health
+- **Error Logging**: Comprehensive error tracking
+- **Performance Metrics**: Response times, throughput
+
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -193,10 +324,18 @@ npx tsx test-working-approach.js
 4. Add tests if applicable
 5. Submit a pull request
 
-## License
+## 📄 License
 
-This project is proprietary software. All rights reserved.
+This project is licensed under the MIT License.
 
-## Support
+## 🆘 Support
 
-For support and questions, please contact the development team.
+For support and questions:
+- Check the documentation
+- Review the API endpoints
+- Test with the provided seed data
+- Check Docker logs for service issues
+
+---
+
+**HeyReach** - Professional Instagram DM automation platform with advanced proxy management and AI-powered recovery capabilities.

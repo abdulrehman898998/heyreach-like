@@ -1,297 +1,241 @@
-import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
-import { useAuth } from "@/hooks/useAuth";
-import { useWebSocket } from "@/hooks/useWebSocket";
-import { useToast } from "@/hooks/use-toast";
-import { isUnauthorizedError } from "@/lib/authUtils";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatsCard } from "@/components/ui/stats-card";
-import { DataTable } from "@/components/ui/data-table";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { EmptyState } from "@/components/ui/empty-state";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import React, { useState, useEffect } from 'react';
 import { 
-  Plus, 
-  TrendingUp, 
-  Users, 
-  MessageSquare, 
-  Target,
-  Activity,
-  Settings,
-  Zap
-} from "lucide-react";
+  UserGroupIcon, 
+  MegaphoneIcon, 
+  DocumentTextIcon, 
+  ChartBarIcon,
+  ArrowTrendingUpIcon,
+  ArrowTrendingDownIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  ClockIcon,
+  FireIcon
+} from '@heroicons/react/24/outline';
 
-export default function DashboardProfessional() {
-  const { user, isAuthenticated, isLoading } = useAuth();
-  const { toast } = useToast();
-  const [, setLocation] = useLocation();
+interface StatsData {
+  totalAccounts: number;
+  activeAccounts: number;
+  totalCampaigns: number;
+  totalLeads: number;
+  totalTemplates: number;
+  recentExecutions: number;
+}
 
-  // WebSocket connection for real-time updates
-  useWebSocket((message) => {
-    switch (message.type) {
-      case 'campaign_update':
-        toast({
-          title: "Campaign Update",
-          description: message.message,
-        });
-        break;
-      case 'error':
-        toast({
-          title: "Error",
-          description: message.error,
-          variant: "destructive",
-        });
-        break;
+interface RecentActivity {
+  id: string;
+  type: 'campaign' | 'account' | 'lead' | 'template';
+  title: string;
+  description: string;
+  timestamp: string;
+  status: 'success' | 'warning' | 'error' | 'info';
+}
+
+const DashboardProfessional: React.FC = () => {
+  const [stats, setStats] = useState<StatsData>({
+    totalAccounts: 0,
+    activeAccounts: 0,
+    totalCampaigns: 0,
+    totalLeads: 0,
+    totalTemplates: 0,
+    recentExecutions: 0
+  });
+
+  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([
+    {
+      id: '1',
+      type: 'campaign',
+      title: 'Summer Sale Campaign',
+      description: 'Campaign completed successfully with 150 messages sent',
+      timestamp: '2 hours ago',
+      status: 'success'
+    },
+    {
+      id: '2',
+      type: 'account',
+      title: 'Account Warmup',
+      description: 'Instagram account @business_pro is warming up (Day 3/7)',
+      timestamp: '4 hours ago',
+      status: 'warning'
+    },
+    {
+      id: '3',
+      type: 'lead',
+      title: 'Leads Imported',
+      description: '500 new leads imported from "Customer List.csv"',
+      timestamp: '6 hours ago',
+      status: 'success'
+    },
+    {
+      id: '4',
+      type: 'template',
+      title: 'Template Created',
+      description: 'New message template "Welcome Series" created',
+      timestamp: '1 day ago',
+      status: 'info'
     }
-  });
+  ]);
 
-  // Fetch analytics stats
-  const { data: stats, error: statsError, isLoading: statsLoading } = useQuery({
-    queryKey: ["/api/analytics/stats"],
-    enabled: isAuthenticated,
-  });
+  const [loading, setLoading] = useState(true);
 
-  // Fetch campaigns
-  const { data: campaigns, error: campaignsError, isLoading: campaignsLoading } = useQuery({
-    queryKey: ["/api/campaigns"],
-    enabled: isAuthenticated,
-  });
-
-  // Fetch activity logs
-  const { data: activityLogs, error: activityError } = useQuery({
-    queryKey: ["/api/activity-logs"],
-    enabled: isAuthenticated,
-  });
-
-  // Handle unauthorized errors
   useEffect(() => {
-    const errors = [statsError, campaignsError, activityError].filter(Boolean);
-    for (const error of errors) {
-      if (isUnauthorizedError(error as Error)) {
-        toast({
-          title: "Unauthorized",
-          description: "You are logged out. Logging in again...",
-          variant: "destructive",
-        });
-        setTimeout(() => {
-          window.location.href = "/api/login";
-        }, 500);
-        return;
+    // Fetch dashboard stats
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/analytics/stats');
+        const data = await response.json();
+        if (data.success) {
+          setStats(data.stats);
+        }
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      } finally {
+        setLoading(false);
       }
-    }
-  }, [statsError, campaignsError, activityError, toast]);
+    };
 
-  if (isLoading) {
+    fetchStats();
+  }, []);
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'success':
+        return <CheckCircleIcon className="w-5 h-5 text-green-500" />;
+      case 'warning':
+        return <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500" />;
+      case 'error':
+        return <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />;
+      default:
+        return <ClockIcon className="w-5 h-5 text-blue-500" />;
+    }
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'campaign':
+        return <MegaphoneIcon className="w-5 h-5 text-blue-600" />;
+      case 'account':
+        return <UserGroupIcon className="w-5 h-5 text-green-600" />;
+      case 'lead':
+        return <DocumentTextIcon className="w-5 h-5 text-purple-600" />;
+      case 'template':
+        return <DocumentTextIcon className="w-5 h-5 text-orange-600" />;
+      default:
+        return <ChartBarIcon className="w-5 h-5 text-gray-600" />;
+    }
+  };
+
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center space-y-4">
-          <LoadingSpinner size="lg" />
-          <p className="text-muted-foreground">Loading dashboard...</p>
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-1/4 mb-8"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="bg-white rounded-xl p-6 shadow-md">
+                  <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+                  <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (!isAuthenticated) {
-    return null;
-  }
-
-  const dashboardStats = stats?.stats || {};
-  const campaignList = campaigns?.campaigns || [];
-  const activityList = activityLogs?.logs || [];
-
-  // Campaign table columns
-  const campaignColumns = [
-    {
-      key: 'name',
-      title: 'Campaign',
-      render: (value: string) => (
-        <div className="font-medium">{value}</div>
-      )
-    },
-    {
-      key: 'status',
-      title: 'Status',
-      render: (value: string) => (
-        <StatusBadge status={(value || 'pending') as any} />
-      )
-    },
-    {
-      key: 'leadsCount',
-      title: 'Leads',
-      render: (value: number) => (
-        <div className="flex items-center gap-1">
-          <Users className="h-3 w-3" />
-          {value || 0}
-        </div>
-      )
-    },
-    {
-      key: 'messagesSent',
-      title: 'Messages',
-      render: (value: number) => (
-        <div className="flex items-center gap-1">
-          <MessageSquare className="h-3 w-3" />
-          {value || 0}
-        </div>
-      )
-    },
-    {
-      key: 'createdAt',
-      title: 'Created',
-      render: (value: string) => (
-        <div className="text-sm text-muted-foreground">
-          {new Date(value).toLocaleDateString()}
-        </div>
-      )
-    }
-  ];
-
   return (
-    <div className="min-h-screen bg-background">
-      <div className="flex flex-col space-y-8 p-6">
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <Zap className="h-8 w-8 text-blue-600" />
-              Dashboard
-            </h1>
-            <p className="text-muted-foreground">
-              Welcome back{user?.firstName ? `, ${user.firstName}` : ''}! Here's your campaign overview.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setLocation('/analytics')}>
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Analytics
-            </Button>
-            <Button onClick={() => setLocation('/campaigns/create')}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Campaign
-            </Button>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+          <p className="text-gray-600">Welcome back! Here's what's happening with your Instagram automation.</p>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <StatsCard
-            title="Total Messages"
-            value={dashboardStats.totalMessages || 0}
-            icon={MessageSquare}
-            description="Messages sent this month"
-            trend={{
-              value: 12,
-              label: "from last month",
-              isPositive: true
-            }}
-          />
-          <StatsCard
-            title="Active Campaigns"
-            value={dashboardStats.activeCampaigns || 0}
-            icon={Target}
-            description="Currently running campaigns"
-          />
-          <StatsCard
-            title="Success Rate"
-            value={`${dashboardStats.successRate || 0}%`}
-            icon={TrendingUp}
-            description="Message delivery rate"
-            trend={{
-              value: 5,
-              label: "from last week",
-              isPositive: true
-            }}
-          />
-          <StatsCard
-            title="Total Leads"
-            value={dashboardStats.totalLeads || 0}
-            icon={Users}
-            description="Leads in your database"
-          />
-        </div>
-
-        {/* Main Content Grid */}
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <DataTable
-              title="Recent Campaigns"
-              columns={campaignColumns}
-              data={campaignList}
-              loading={campaignsLoading}
-              emptyState={{
-                icon: <Target className="h-12 w-12" />,
-                title: "No campaigns yet",
-                description: "Create your first campaign to start sending personalized messages",
-                action: (
-                  <Button onClick={() => setLocation('/campaigns/create')}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Campaign
-                  </Button>
-                )
-              }}
-            />
-          </div>
-          
-          <div className="space-y-6">
-            {/* Live Activity */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5" />
-                  Live Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {activityList.length === 0 ? (
-                  <EmptyState
-                    icon={<Activity className="h-8 w-8" />}
-                    title="No recent activity"
-                    description="Campaign activity will appear here"
-                  />
-                ) : (
-                  <div className="space-y-3">
-                    {activityList.slice(0, 5).map((activity: any, index: number) => (
-                      <div key={index} className="flex items-start gap-3 text-sm">
-                        <div className="w-2 h-2 bg-blue-600 rounded-full mt-2" />
-                        <div className="flex-1">
-                          <div className="font-medium">{activity.action}</div>
-                          <div className="text-muted-foreground text-xs">
-                            {new Date(activity.timestamp).toLocaleTimeString()}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Total Accounts */}
+          <div className="card">
+            <div className="card-body">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Accounts</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.totalAccounts}</p>
+                  <div className="flex items-center mt-2">
+                    <ArrowTrendingUpIcon className="w-4 h-4 text-green-500 mr-1" />
+                    <span className="text-sm text-green-600">+12% from last month</span>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </div>
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <UserGroupIcon className="w-6 h-6 text-blue-600" />
+                </div>
+              </div>
+            </div>
+          </div>
 
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button variant="outline" className="w-full justify-start" onClick={() => setLocation('/leads')}>
-                  <Users className="h-4 w-4 mr-2" />
-                  Upload Leads
-                </Button>
-                <Button variant="outline" className="w-full justify-start" onClick={() => setLocation('/accounts')}>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Manage Accounts
-                </Button>
-                <Button variant="outline" className="w-full justify-start" onClick={() => setLocation('/analytics')}>
-                  <TrendingUp className="h-4 w-4 mr-2" />
-                  View Analytics
-                </Button>
-              </CardContent>
-            </Card>
+          {/* Active Accounts */}
+          <div className="card">
+            <div className="card-body">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Active Accounts</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.activeAccounts}</p>
+                  <div className="flex items-center mt-2">
+                    <FireIcon className="w-4 h-4 text-orange-500 mr-1" />
+                    <span className="text-sm text-orange-600">Ready for campaigns</span>
+                  </div>
+                </div>
+                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                  <CheckCircleIcon className="w-6 h-6 text-green-600" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Total Campaigns */}
+          <div className="card">
+            <div className="card-body">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Campaigns</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.totalCampaigns}</p>
+                  <div className="flex items-center mt-2">
+                    <ArrowTrendingUpIcon className="w-4 h-4 text-blue-500 mr-1" />
+                    <span className="text-sm text-blue-600">+5 this week</span>
+                  </div>
+                </div>
+                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <MegaphoneIcon className="w-6 h-6 text-purple-600" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Total Leads */}
+          <div className="card">
+            <div className="card-body">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Leads</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.totalLeads.toLocaleString()}</p>
+                  <div className="flex items-center mt-2">
+                    <ArrowTrendingUpIcon className="w-4 h-4 text-green-500 mr-1" />
+                    <span className="text-sm text-green-600">+1.2k this month</span>
+                  </div>
+                </div>
+                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                  <DocumentTextIcon className="w-6 h-6 text-orange-600" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+
+
       </div>
     </div>
   );
-}
+};
+
+export default DashboardProfessional;

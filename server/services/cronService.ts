@@ -48,17 +48,17 @@ class CronService {
   private async updateAccountHealthScores(): Promise<void> {
     try {
       // Get all Instagram accounts
-      const accounts = await storage.getInstagramAccountsByUser(""); // This would need to be updated to loop through all users
+      const accounts = await storage.accounts.getAllAccounts();
       
       for (const account of accounts) {
-        if (account.isActive) {
+        if (account.status === 'active') {
           // For now, just mark accounts as healthy
           // In a real implementation, this would check for:
           // - Recent successful message sends
           // - Account blocks/restrictions
           // - Rate limiting issues
           
-          await storage.updateInstagramAccount(account.id, {
+          await storage.accounts.updateAccount(account.id, {
             healthScore: 100,
             lastUsed: new Date()
           });

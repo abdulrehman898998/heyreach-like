@@ -1,202 +1,116 @@
-import { useState } from "react";
-import { Link, useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
-import {
-  LayoutDashboard,
-  Users,
-  MessageSquare,
-  TrendingUp,
-  Settings,
-  Database,
-  Target,
-  Zap,
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-  Bell
-} from "lucide-react";
+import React from 'react';
+import { Link, useLocation } from 'wouter';
+import { 
+  HomeIcon, 
+  UserGroupIcon, 
+  MegaphoneIcon, 
+  DocumentTextIcon
+} from '@heroicons/react/24/outline';
 
-interface NavItem {
-  title: string;
-  href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  badge?: string | number;
-  description?: string;
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-const navigation: NavItem[] = [
-  {
-    title: "Dashboard",
-    href: "/",
-    icon: LayoutDashboard,
-    description: "Overview and analytics"
-  },
-  {
-    title: "Campaigns",
-    href: "/campaigns",
-    icon: Target,
-    badge: "3",
-    description: "Manage outreach campaigns"
-  },
-  {
-    title: "Leads",
-    href: "/leads",
-    icon: Database,
-    description: "Upload and manage contacts"
-  },
-  {
-    title: "Analytics",
-    href: "/analytics",
-    icon: TrendingUp,
-    description: "Performance insights"
-  },
-  {
-    title: "Accounts",
-    href: "/accounts",
-    icon: Users,
-    description: "Connected social accounts"
-  }
+const navigation = [
+  { name: 'Dashboard', href: '/', icon: HomeIcon },
+  { name: 'Accounts', href: '/accounts', icon: UserGroupIcon },
+  { name: 'Campaigns', href: '/campaigns', icon: MegaphoneIcon },
+  { name: 'Leads', href: '/leads', icon: DocumentTextIcon },
 ];
 
-const bottomNavigation: NavItem[] = [
-  {
-    title: "Settings",
-    href: "/settings",
-    icon: Settings,
-    description: "App configuration"
-  }
-];
-
-interface ProfessionalSidebarProps {
-  className?: string;
-}
-
-export function ProfessionalSidebar({ className }: ProfessionalSidebarProps) {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
   const [location] = useLocation();
-  const [isCollapsed, setIsCollapsed] = useState(false);
-
-  const NavItemComponent = ({ item }: { item: NavItem }) => {
-    const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
-    const Icon = item.icon;
-
-    return (
-      <Link href={item.href}>
-        <Button
-          variant={isActive ? "default" : "ghost"}
-          className={cn(
-            "w-full justify-start gap-3 h-12 transition-all duration-200",
-            isActive && "bg-primary text-primary-foreground shadow-md",
-            !isActive && "hover:bg-muted/50",
-            isCollapsed && "px-3"
-          )}
-        >
-          <Icon className={cn("h-5 w-5 flex-shrink-0", isActive && "text-primary-foreground")} />
-          {!isCollapsed && (
-            <>
-              <div className="flex-1 text-left">
-                <div className="font-medium">{item.title}</div>
-                {item.description && (
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    {item.description}
-                  </div>
-                )}
-              </div>
-              {item.badge && (
-                <Badge variant="secondary" className="h-5 px-2 text-xs">
-                  {item.badge}
-                </Badge>
-              )}
-            </>
-          )}
-        </Button>
-      </Link>
-    );
-  };
 
   return (
-    <div className={cn(
-      "flex flex-col bg-card border-r border-border transition-all duration-300",
-      isCollapsed ? "w-16" : "w-72",
-      className
-    )}>
-      {/* Header */}
-      <div className="p-4 border-b border-border">
-        <div className="flex items-center justify-between">
-          {!isCollapsed && (
-            <div className="flex items-center gap-2">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary">
-                <Zap className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold">SocialMetrics</h2>
-                <p className="text-xs text-muted-foreground">Outreach Platform</p>
-              </div>
-            </div>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="h-8 w-8 p-0"
-          >
-            {isCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronLeft className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      {!isCollapsed && (
-        <div className="p-4 border-b border-border">
-          <div className="space-y-2">
-            <Link href="/campaigns/create">
-              <Button className="w-full gap-2 bg-primary hover:bg-primary/90">
-                <Plus className="h-4 w-4" />
-                New Campaign
-              </Button>
-            </Link>
-            <Link href="/leads">
-              <Button variant="outline" className="w-full gap-2">
-                <Database className="h-4 w-4" />
-                Upload Leads
-              </Button>
-            </Link>
-          </div>
-        </div>
+    <>
+      {/* Mobile overlay */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
+          onClick={onClose}
+        />
       )}
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2">
-        {navigation.map((item) => (
-          <NavItemComponent key={item.href} item={item} />
-        ))}
-      </nav>
-
-      {/* Bottom Navigation */}
-      <div className="p-4 border-t border-border space-y-2">
-        {bottomNavigation.map((item) => (
-          <NavItemComponent key={item.href} item={item} />
-        ))}
-        
-        {/* Notifications */}
-        {!isCollapsed && (
-          <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <Bell className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Notifications</span>
+      {/* Sidebar */}
+      <div className={`
+        fixed left-0 top-0 h-full w-64 bg-white shadow-xl border-r border-gray-200 
+        transform transition-transform duration-300 ease-in-out z-40
+        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        lg:translate-x-0
+      `}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-6 border-b border-gray-100">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
+              </svg>
             </div>
-            <p className="text-xs text-muted-foreground">
-              3 campaigns completed successfully
-            </p>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">HeyReach</h1>
+              <p className="text-xs text-gray-500">Instagram Automation</p>
+            </div>
           </div>
-        )}
+          
+          {/* Mobile close button */}
+          <button
+            onClick={onClose}
+            className="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Navigation */}
+        <nav className="px-4 py-6 space-y-2">
+          {navigation.map((item) => {
+            const isActive = location === item.href;
+            return (
+              <Link 
+                key={item.name} 
+                href={item.href}
+                className={`
+                  flex items-center px-4 py-3 rounded-lg transition-all duration-200 group
+                  ${isActive 
+                    ? 'bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 font-medium shadow-sm' 
+                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                  }
+                `}
+              >
+                <item.icon className={`
+                  w-5 h-5 mr-3 transition-colors
+                  ${isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}
+                `} />
+                <span className="text-sm">{item.name}</span>
+                {isActive && (
+                  <div className="ml-auto w-2 h-2 bg-blue-600 rounded-full"></div>
+                )}
+              </Link>
+            );
+          })}
+        </nav>
+
+
+
+        {/* User Profile */}
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 bg-gray-50">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-blue-700 rounded-full flex items-center justify-center">
+              <span className="text-white text-sm font-medium">U</span>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-900">User Account</p>
+              <p className="text-xs text-gray-500">user@example.com</p>
+            </div>
+
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
-}
+};
+
+export default Sidebar;
