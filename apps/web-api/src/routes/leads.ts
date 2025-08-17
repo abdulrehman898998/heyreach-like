@@ -1,479 +1,437 @@
-import { Router } from 'express';
-import { z } from 'zod';
-import multer from 'multer';
-import { parse } from 'csv-parse';
-import { db, schema } from '../lib/drizzle';
-import { authenticateToken } from '../lib/auth';
-import { UploadLeadsSchema } from '@heyreach/shared/zod';
+import { Router } from 'express'
+import { z } from 'zod'
+import { db, schema } from '../lib/drizzle'
+import { authenticateToken, requireOwnership } from '../lib/auth'
+import { eq, and, inArray } from 'drizzle-orm'
+import multer from 'multer'
+import { parse } from 'csv-parse'
 
-const router = Router();
+const router: Router = Router()
 
-// Configure multer for CSV uploads
+// Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (_req, file, cb) => {
     if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
-      cb(null, true);
+      cb(null, true)
     } else {
-      cb(new Error('Only CSV files are allowed'));
+      cb(new Error('Only CSV files are allowed'))
     }
   },
-});
+})
+
+// Lead creation schema
+const createLeadSchema = z.object({
+  profile_url: z.string().url().refine(url => url.includes('instagram.com'), {
+    message: 'Profile URL must be from Instagram',
+  }),
+  first_name: z.string().optional(),
+  custom_fields: z.record(z.string()).optional(),
+})
+
+// Lead update schema
+const updateLeadSchema = z.object({
+  profile_url: z.string().url().optional(),
+  first_name: z.string().optional(),
+  custom_fields: z.record(z.string()).optional(),
+  status: z.enum(['pending', 'sent', 'failed', 'blocked']).optional(),
+})
 
 // GET /api/leads - List user's leads
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const { campaign_id, status, limit = 50, offset = 0 } = req.query;
+    const userId = req.user!.id
+    const { page = 1, limit = 10, status, campaign_id } = req.query
+
+    const offset = (Number(page) - 1) * Number(limit)
     
-    const whereConditions = [];
-    whereConditions.push((leads: any, { eq }: any) => eq(leads.user_id, req.user!.id));
+    const whereConditions = [eq(schema.leads.user_id, userId)]
     
-    if (campaign_id) {
-      whereConditions.push((leads: any, { eq }: any) => eq(leads.campaign_id, parseInt(campaign_id as string)));
+    if (status && typeof status === 'string') {
+      whereConditions.push(eq(schema.leads.status, status as any))
     }
     
-    if (status) {
-      whereConditions.push((leads: any, { eq }: any) => eq(leads.status, status));
+    if (campaign_id && typeof campaign_id === 'string') {
+      whereConditions.push(eq(schema.leads.campaign_id, parseInt(campaign_id)))
     }
+    
+    const whereClause = whereConditions.length === 1 ? whereConditions[0] : and(...whereConditions)
 
     const leads = await db.query.leads.findMany({
-      where: (leads, { and, eq }) => {
-        const conditions = [eq(leads.user_id, req.user!.id)];
-        if (campaign_id) conditions.push(eq(leads.campaign_id, parseInt(campaign_id as string)));
-        if (status) conditions.push(eq(leads.status, status as string));
-        return and(...conditions);
-      },
-      with: {
-        campaign: {
-          columns: {
-            id: true,
-            name: true,
-            status: true,
-          }
-        },
-        messages: {
-          columns: {
-            id: true,
-            status: true,
-            sent_at: true,
-          }
-        }
-      },
-      orderBy: (leads, { desc }) => [desc(leads.created_at)],
-      limit: parseInt(limit as string),
-      offset: parseInt(offset as string),
-    });
+      where: whereClause,
+      limit: Number(limit),
+      offset,
+      orderBy: schema.leads.created_at,
+    })
 
-    // Calculate lead statistics
-    const leadStats = leads.map(lead => ({
-      ...lead,
-      message_count: lead.messages.length,
-      last_message: lead.messages.length > 0 ? lead.messages[0] : null,
-    }));
-
-    res.json({
-      success: true,
-      data: leadStats
-    });
-  } catch (error) {
-    console.error('Failed to fetch leads:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch leads'
-    });
-  }
-});
-
-// POST /api/leads/upload - Upload CSV leads
-router.post('/upload', authenticateToken, upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        error: 'No file uploaded'
-      });
-    }
-
-    const validatedData = UploadLeadsSchema.parse(req.body);
-    const csvContent = req.file.buffer.toString('utf-8');
-
-    // Parse CSV content
-    const records: any[] = [];
-    const parser = parse(csvContent, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-    });
-
-    for await (const record of parser) {
-      records.push(record);
-    }
-
-    if (records.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'No valid records found in CSV'
-      });
-    }
-
-    if (records.length > 10000) {
-      return res.status(400).json({
-        success: false,
-        error: 'Maximum 10,000 leads allowed per upload'
-      });
-    }
-
-    // Validate CSV structure
-    const requiredColumns = ['profile_url'];
-    const firstRecord = records[0];
-    const missingColumns = requiredColumns.filter(col => !(col in firstRecord));
-    
-    if (missingColumns.length > 0) {
-      return res.status(400).json({
-        success: false,
-        error: `Missing required columns: ${missingColumns.join(', ')}`
-      });
-    }
-
-    // Validate profile URLs
-    const invalidUrls = records.filter(record => {
-      const url = record.profile_url;
-      return !url || !url.includes('instagram.com/');
-    });
-
-    if (invalidUrls.length > 0) {
-      return res.status(400).json({
-        success: false,
-        error: `${invalidUrls.length} records have invalid Instagram profile URLs`
-      });
-    }
-
-    // Check for duplicate profile URLs
-    const profileUrls = records.map(r => r.profile_url);
-    const duplicateUrls = profileUrls.filter((url, index) => profileUrls.indexOf(url) !== index);
-    
-    if (duplicateUrls.length > 0) {
-      return res.status(400).json({
-        success: false,
-        error: `${duplicateUrls.length} duplicate profile URLs found`
-      });
-    }
-
-    // Check for existing leads with same URLs
-    const existingLeads = await db.query.leads.findMany({
-      where: (leads, { and, eq, inArray }) => 
-        and(
-          eq(leads.user_id, req.user!.id),
-          inArray(leads.profile_url, profileUrls)
-        ),
-      columns: {
-        profile_url: true,
-      }
-    });
-
-    const existingUrls = existingLeads.map(lead => lead.profile_url);
-    const newRecords = records.filter(record => !existingUrls.includes(record.profile_url));
-
-    if (newRecords.length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: 'All leads already exist in your database'
-      });
-    }
-
-    // Insert new leads
-    const leadsToInsert = newRecords.map(record => ({
-      user_id: req.user!.id,
-      campaign_id: validatedData.campaign_id || null,
-      profile_url: record.profile_url,
-      first_name: record.first_name || null,
-      custom_fields: {
-        ...record,
-        profile_url: undefined, // Remove from custom fields
-        first_name: undefined, // Remove from custom fields
-      },
-      status: 'pending',
-    }));
-
-    const insertedLeads = await db.insert(schema.leads).values(leadsToInsert).returning();
+    const total = await db
+      .select({ count: schema.leads.id })
+      .from(schema.leads)
+      .where(whereClause)
 
     res.json({
       success: true,
       data: {
-        total_uploaded: records.length,
-        new_leads: insertedLeads.length,
-        existing_leads: existingLeads.length,
-        leads: insertedLeads
-      }
-    });
+        items: leads,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total: total.length,
+          pages: Math.ceil(total.length / Number(limit)),
+        },
+      },
+    })
+  } catch (error) {
+    console.error('Error fetching leads:', error)
+    res.status(500).json({ success: false, error: 'Failed to fetch leads' })
+  }
+})
+
+// POST /api/leads - Create new lead
+router.post('/', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user!.id
+    const validatedData = createLeadSchema.parse(req.body)
+
+    // Check if lead already exists for this user
+    const existingLead = await db.query.leads.findFirst({
+      where: and(
+        eq(schema.leads.user_id, userId),
+        eq(schema.leads.profile_url, validatedData.profile_url)
+      ),
+    })
+
+    if (existingLead) {
+      return res.status(400).json({
+        success: false,
+        error: 'Lead with this profile URL already exists',
+      })
+    }
+
+    const [lead] = await db.insert(schema.leads).values({
+      user_id: userId,
+      profile_url: validatedData.profile_url,
+      first_name: validatedData.first_name,
+      custom_fields: validatedData.custom_fields || {},
+      status: 'pending',
+    }).returning()
+
+    res.status(201).json({
+      success: true,
+      data: lead,
+    })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         success: false,
-        error: 'Validation failed',
-        details: error.errors
-      });
-    }
-
-    console.error('Failed to upload leads:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to upload leads'
-    });
-  }
-});
-
-// GET /api/leads/:id - Get lead details
-router.get('/:id', authenticateToken, async (req, res) => {
-  try {
-    const leadId = parseInt(req.params.id);
-    
-    const lead = await db.query.leads.findFirst({
-      where: (leads, { and, eq }) => 
-        and(
-          eq(leads.id, leadId),
-          eq(leads.user_id, req.user!.id)
-        ),
-      with: {
-        campaign: {
-          columns: {
-            id: true,
-            name: true,
-            status: true,
-          }
-        },
-        messages: {
-          orderBy: (messages, { desc }) => [desc(messages.created_at)]
-        }
-      }
-    });
-
-    if (!lead) {
-      return res.status(404).json({
-        success: false,
-        error: 'Lead not found'
-      });
-    }
-
-    res.json({
-      success: true,
-      data: lead
-    });
-  } catch (error) {
-    console.error('Failed to fetch lead:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to fetch lead'
-    });
-  }
-});
-
-// PUT /api/leads/:id - Update lead
-router.put('/:id', authenticateToken, async (req, res) => {
-  try {
-    const leadId = parseInt(req.params.id);
-    const { first_name, custom_fields, campaign_id } = req.body;
-    
-    const lead = await db.query.leads.findFirst({
-      where: (leads, { and, eq }) => 
-        and(
-          eq(leads.id, leadId),
-          eq(leads.user_id, req.user!.id)
-        )
-    });
-
-    if (!lead) {
-      return res.status(404).json({
-        success: false,
-        error: 'Lead not found'
-      });
-    }
-
-    // Validate campaign ownership if campaign_id is provided
-    if (campaign_id) {
-      const campaign = await db.query.campaigns.findFirst({
-        where: (campaigns, { and, eq }) => 
-          and(
-            eq(campaigns.id, campaign_id),
-            eq(campaigns.user_id, req.user!.id)
-          )
-      });
-
-      if (!campaign) {
-        return res.status(400).json({
-          success: false,
-          error: 'Campaign not found or does not belong to you'
-        });
-      }
-    }
-
-    // Update lead
-    const [updatedLead] = await db.update(schema.leads)
-      .set({
-        first_name: first_name || lead.first_name,
-        custom_fields: custom_fields || lead.custom_fields,
-        campaign_id: campaign_id || lead.campaign_id,
+        error: 'Validation error',
+        details: error.errors,
       })
-      .where(schema.leads.id.eq(leadId))
-      .returning();
+    }
 
-    res.json({
-      success: true,
-      data: updatedLead
-    });
-  } catch (error) {
-    console.error('Failed to update lead:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to update lead'
-    });
+    console.error('Error creating lead:', error)
+    res.status(500).json({ success: false, error: 'Failed to create lead' })
   }
-});
+})
 
-// DELETE /api/leads/:id - Delete lead
-router.delete('/:id', authenticateToken, async (req, res) => {
+// POST /api/leads/upload - Upload CSV file
+router.post('/upload', authenticateToken, upload.single('file'), async (req, res) => {
   try {
-    const leadId = parseInt(req.params.id);
+    const userId = req.user!.id
+    const { campaign_id } = req.body
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No file uploaded',
+      })
+    }
+
+    const results: any[] = []
+    const errors: string[] = []
+    let rowNumber = 0
+
+    // Parse CSV
+    const csvContent = req.file.buffer.toString('utf-8')
     
-    const lead = await db.query.leads.findFirst({
-      where: (leads, { and, eq }) => 
-        and(
-          eq(leads.id, leadId),
-          eq(leads.user_id, req.user!.id)
-        )
-    });
+    await new Promise((resolve, reject) => {
+      parse(csvContent, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+      }, (err, records) => {
+        if (err) {
+          reject(err)
+          return
+        }
+        
+                 records.forEach((data: any) => {
+           rowNumber++
+           
+                       // Store ALL original data as custom fields
+            const customFields: Record<string, string> = {}
+            Object.keys(data).forEach(key => {
+              if (data[key]) {
+                customFields[key] = data[key]
+              }
+            })
 
-    if (!lead) {
-      return res.status(404).json({
-        success: false,
-        error: 'Lead not found'
-      });
-    }
+            results.push({
+              profile_url: null, // Will be set during campaign creation
+              first_name: null,
+              custom_fields: customFields, // All original data preserved
+            })
+         })
+         
+         resolve(undefined)
+       })
+    })
 
-    // Delete related messages first
-    await db.delete(schema.messages)
-      .where(schema.messages.lead_id.eq(leadId));
-
-    // Delete lead
-    await db.delete(schema.leads)
-      .where(schema.leads.id.eq(leadId));
-
-    res.json({
-      success: true,
-      message: 'Lead deleted successfully'
-    });
-  } catch (error) {
-    console.error('Failed to delete lead:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to delete lead'
-    });
-  }
-});
-
-// POST /api/leads/bulk-assign - Bulk assign leads to campaign
-router.post('/bulk-assign', authenticateToken, async (req, res) => {
-  try {
-    const { lead_ids, campaign_id } = req.body;
-
-    if (!lead_ids || !Array.isArray(lead_ids) || lead_ids.length === 0) {
+    if (errors.length > 0) {
       return res.status(400).json({
         success: false,
-        error: 'Lead IDs array is required'
-      });
+        error: 'CSV validation errors',
+        details: errors,
+      })
     }
 
-    if (!campaign_id) {
+    // Check for duplicates
+    const existingUrls = await db
+      .select({ profile_url: schema.leads.profile_url })
+      .from(schema.leads)
+      .where(
+        and(
+          eq(schema.leads.user_id, userId),
+          // Check if any of the new URLs already exist
+        )
+      )
+
+    const existingUrlSet = new Set(existingUrls.map(u => u.profile_url))
+    const duplicates = results.filter(r => existingUrlSet.has(r.profile_url))
+
+    if (duplicates.length > 0) {
       return res.status(400).json({
         success: false,
-        error: 'Campaign ID is required'
-      });
+        error: 'Duplicate profile URLs found',
+        details: duplicates.map(d => d.profile_url),
+      })
     }
 
-    // Verify campaign ownership
-    const campaign = await db.query.campaigns.findFirst({
-      where: (campaigns, { and, eq }) => 
-        and(
-          eq(campaigns.id, campaign_id),
-          eq(campaigns.user_id, req.user!.id)
-        )
-    });
+    // Insert leads
+    const leadsToInsert = results.map(lead => ({
+      user_id: userId,
+      campaign_id: campaign_id ? parseInt(campaign_id) : null,
+      ...lead,
+      status: 'pending',
+    }))
 
-    if (!campaign) {
-      return res.status(400).json({
-        success: false,
-        error: 'Campaign not found or does not belong to you'
-      });
-    }
-
-    // Update leads
-    const result = await db.update(schema.leads)
-      .set({ campaign_id })
-      .where((leads, { and, eq, inArray }) => 
-        and(
-          eq(leads.user_id, req.user!.id),
-          inArray(leads.id, lead_ids)
-        )
-      );
-
-    res.json({
-      success: true,
-      message: 'Leads assigned to campaign successfully'
-    });
-  } catch (error) {
-    console.error('Failed to bulk assign leads:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to bulk assign leads'
-    });
-  }
-});
-
-// GET /api/leads/stats - Get lead statistics
-router.get('/stats', authenticateToken, async (req, res) => {
-  try {
-    const { campaign_id } = req.query;
-    
-    const whereConditions = [(leads: any, { eq }: any) => eq(leads.user_id, req.user!.id)];
-    if (campaign_id) {
-      whereConditions.push((leads: any, { eq }: any) => eq(leads.campaign_id, parseInt(campaign_id as string)));
-    }
-
-    const leads = await db.query.leads.findMany({
-      where: (leads, { and, eq }) => {
-        const conditions = [eq(leads.user_id, req.user!.id)];
-        if (campaign_id) conditions.push(eq(leads.campaign_id, parseInt(campaign_id as string)));
-        return and(...conditions);
-      }
-    });
-
-    const totalLeads = leads.length;
-    const pendingLeads = leads.filter(lead => lead.status === 'pending').length;
-    const sentLeads = leads.filter(lead => lead.status === 'sent').length;
-    const failedLeads = leads.filter(lead => lead.status === 'failed').length;
-    const blockedLeads = leads.filter(lead => lead.status === 'blocked').length;
+    const insertedLeads = await db.insert(schema.leads).values(leadsToInsert).returning()
 
     res.json({
       success: true,
       data: {
-        total: totalLeads,
-        pending: pendingLeads,
-        sent: sentLeads,
-        failed: failedLeads,
-        blocked: blockedLeads,
-        success_rate: totalLeads > 0 ? (sentLeads / totalLeads) * 100 : 0
-      }
-    });
+        message: `Successfully uploaded ${insertedLeads.length} leads`,
+        count: insertedLeads.length,
+        leads: insertedLeads,
+      },
+    })
   } catch (error) {
-    console.error('Failed to get lead stats:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to get lead statistics'
-    });
+    console.error('Error uploading leads:', error)
+    res.status(500).json({ success: false, error: 'Failed to upload leads' })
   }
-});
+})
 
-export default router;
+// GET /api/leads/:id - Get specific lead
+router.get('/:id', authenticateToken, requireOwnership('leads'), async (req, res) => {
+  try {
+    const leadId = parseInt(req.params.id)
+
+    const lead = await db.query.leads.findFirst({
+      where: eq(schema.leads.id, leadId),
+    })
+
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        error: 'Lead not found',
+      })
+    }
+
+    res.json({
+      success: true,
+      data: lead,
+    })
+  } catch (error) {
+    console.error('Error fetching lead:', error)
+    res.status(500).json({ success: false, error: 'Failed to fetch lead' })
+  }
+})
+
+// PUT /api/leads/:id - Update lead
+router.put('/:id', authenticateToken, requireOwnership('leads'), async (req, res) => {
+  try {
+    const leadId = parseInt(req.params.id)
+    const validatedData = updateLeadSchema.parse(req.body)
+
+    const [updatedLead] = await db
+      .update(schema.leads)
+      .set({
+        ...validatedData,
+      })
+      .where(eq(schema.leads.id, leadId))
+      .returning()
+
+    if (!updatedLead) {
+      return res.status(404).json({
+        success: false,
+        error: 'Lead not found',
+      })
+    }
+
+    res.json({
+      success: true,
+      data: updatedLead,
+    })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Validation error',
+        details: error.errors,
+      })
+    }
+
+    console.error('Error updating lead:', error)
+    res.status(500).json({ success: false, error: 'Failed to update lead' })
+  }
+})
+
+// DELETE /api/leads/:id - Delete lead
+router.delete('/:id', authenticateToken, requireOwnership('leads'), async (req, res) => {
+  try {
+    const leadId = parseInt(req.params.id)
+
+    const [deletedLead] = await db
+      .delete(schema.leads)
+      .where(eq(schema.leads.id, leadId))
+      .returning()
+
+    if (!deletedLead) {
+      return res.status(404).json({
+        success: false,
+        error: 'Lead not found',
+      })
+    }
+
+    res.json({
+      success: true,
+      data: { message: 'Lead deleted successfully' },
+    })
+  } catch (error) {
+    console.error('Error deleting lead:', error)
+    res.status(500).json({ success: false, error: 'Failed to delete lead' })
+  }
+})
+
+// POST /api/leads/bulk-delete - Bulk delete leads
+router.post('/bulk-delete', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user!.id
+    const { lead_ids } = req.body
+
+    if (!Array.isArray(lead_ids) || lead_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Lead IDs array is required',
+      })
+    }
+
+    const deletedLeads = await db
+      .delete(schema.leads)
+      .where(
+        and(
+          eq(schema.leads.user_id, userId),
+          inArray(schema.leads.id, lead_ids.map(id => parseInt(id)))
+        )
+      )
+      .returning()
+
+    res.json({
+      success: true,
+      data: {
+        message: `Successfully deleted ${deletedLeads.length} leads`,
+        count: deletedLeads.length,
+      },
+    })
+  } catch (error) {
+    console.error('Error bulk deleting leads:', error)
+    res.status(500).json({ success: false, error: 'Failed to bulk delete leads' })
+  }
+})
+
+// GET /api/leads/available - Get leads available for campaigns (not assigned to active campaigns)
+router.get('/available', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user!.id
+
+    const availableLeads = await db.query.leads.findMany({
+      where: and(
+        eq(schema.leads.user_id, userId),
+        eq(schema.leads.status, 'pending')
+      ),
+      orderBy: schema.leads.created_at,
+    })
+
+    res.json({
+      success: true,
+      data: availableLeads,
+    })
+  } catch (error) {
+    console.error('Error fetching available leads:', error)
+    res.status(500).json({ success: false, error: 'Failed to fetch available leads' })
+  }
+})
+
+// GET /api/leads/stats - Get lead statistics
+router.get('/stats', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user!.id
+
+    const stats = await db
+      .select({
+        total: schema.leads.id,
+        pending: schema.leads.status,
+        sent: schema.leads.status,
+        failed: schema.leads.status,
+        blocked: schema.leads.status,
+      })
+      .from(schema.leads)
+      .where(eq(schema.leads.user_id, userId))
+
+    const total = stats.length
+    const pending = stats.filter(s => s.pending === 'pending').length
+    const sent = stats.filter(s => s.sent === 'sent').length
+    const failed = stats.filter(s => s.failed === 'failed').length
+    const blocked = stats.filter(s => s.blocked === 'blocked').length
+
+    res.json({
+      success: true,
+      data: {
+        total,
+        pending,
+        sent,
+        failed,
+        blocked,
+        success_rate: total > 0 ? (sent / total) * 100 : 0,
+      },
+    })
+  } catch (error) {
+    console.error('Error fetching lead stats:', error)
+    res.status(500).json({ success: false, error: 'Failed to fetch lead stats' })
+  }
+})
+
+export default router

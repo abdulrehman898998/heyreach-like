@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { db, schema } from '../lib/drizzle';
 import { authenticateToken } from '../lib/auth';
+import { eq, and } from 'drizzle-orm';
 
-const router = Router();
+const router: Router = Router();
 
 // GET /api/notifications - List user's notifications
 router.get('/', authenticateToken, async (req, res) => {
@@ -104,7 +105,7 @@ router.post('/:id/read', authenticateToken, async (req, res) => {
 
     await db.update(schema.notifications)
       .set({ is_read: true })
-      .where(schema.notifications.id.eq(notificationId));
+      .where(eq(schema.notifications.id, notificationId));
 
     res.json({
       success: true,
@@ -124,7 +125,7 @@ router.post('/read-all', authenticateToken, async (req, res) => {
   try {
     await db.update(schema.notifications)
       .set({ is_read: true })
-      .where(schema.notifications.user_id.eq(req.user!.id));
+      .where(eq(schema.notifications.user_id, req.user!.id));
 
     res.json({
       success: true,
@@ -160,7 +161,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     }
 
     await db.delete(schema.notifications)
-      .where(schema.notifications.id.eq(notificationId));
+      .where(eq(schema.notifications.id, notificationId));
 
     res.json({
       success: true,
@@ -179,10 +180,10 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 router.post('/clear-read', authenticateToken, async (req, res) => {
   try {
     await db.delete(schema.notifications)
-      .where((notifications, { and, eq }) => 
+      .where(
         and(
-          eq(notifications.user_id, req.user!.id),
-          eq(notifications.is_read, true)
+          eq(schema.notifications.user_id, req.user!.id),
+          eq(schema.notifications.is_read, true)
         )
       );
 

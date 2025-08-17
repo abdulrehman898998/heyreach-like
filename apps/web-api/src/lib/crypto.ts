@@ -22,7 +22,7 @@ export function encryptJson<T>(obj: T): string {
     const jsonString = JSON.stringify(obj);
     const iv = crypto.randomBytes(12); // 96-bit IV for AES-GCM
     
-    const cipher = crypto.createCipherGCM('aes-256-gcm', key);
+    const cipher = crypto.createCipher('aes-256-gcm', key);
     cipher.setAAD(Buffer.from('heyreach-cookies', 'utf8')); // Additional authenticated data
     
     let encrypted = cipher.update(jsonString, 'utf8', 'hex');
@@ -47,11 +47,10 @@ export function decryptJson<T>(encryptedData: string): T {
     const combined = Buffer.from(encryptedData, 'base64');
     
     // Extract IV (12 bytes), encrypted data, and auth tag (16 bytes)
-    const iv = combined.subarray(0, 12);
     const authTag = combined.subarray(combined.length - 16);
     const encrypted = combined.subarray(12, combined.length - 16);
     
-    const decipher = crypto.createDecipherGCM('aes-256-gcm', key);
+    const decipher = crypto.createDecipher('aes-256-gcm', key);
     decipher.setAAD(Buffer.from('heyreach-cookies', 'utf8'));
     decipher.setAuthTag(authTag);
     
@@ -74,23 +73,23 @@ export function generateSecureString(length: number = 32): string {
 export async function hashPassword(password: string): Promise<string> {
   const bcrypt = await import('bcryptjs');
   const saltRounds = 12;
-  return bcrypt.hash(password, saltRounds);
+  return bcrypt.default.hash(password, saltRounds);
 }
 
 // Verify password with bcrypt
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   const bcrypt = await import('bcryptjs');
-  return bcrypt.compare(password, hash);
+  return bcrypt.default.compare(password, hash);
 }
 
 // Generate JWT token
 export async function generateJWT(payload: Record<string, any>): Promise<string> {
   const jwt = await import('jsonwebtoken');
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: '7d' });
+  return jwt.default.sign(payload, env.JWT_SECRET, { expiresIn: '7d' });
 }
 
 // Verify JWT token
 export async function verifyJWT(token: string): Promise<Record<string, any>> {
   const jwt = await import('jsonwebtoken');
-  return jwt.verify(token, env.JWT_SECRET);
+  return jwt.default.verify(token, env.JWT_SECRET) as Record<string, any>;
 }

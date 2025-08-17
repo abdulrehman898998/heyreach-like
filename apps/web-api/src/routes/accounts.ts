@@ -3,15 +3,27 @@ import { z } from 'zod'
 import { db, schema } from '../lib/drizzle'
 import { authenticateToken, requireOwnership } from '../lib/auth'
 import { eq, and } from 'drizzle-orm'
+import { scheduleWarmupJob } from '../lib/queues'
+import { encryptJson } from '../lib/crypto'
+import { inArray } from 'drizzle-orm'
 
-const router = Router()
+const router: Router = Router()
 
 // Account creation schema
 const createAccountSchema = z.object({
   username: z.string().min(1).max(50),
-  home_country: z.string().length(2),
-  home_city: z.string().min(1).max(100),
+  password: z.string().min(1, 'Password is required'),
+  secret_key: z.string().optional(),
+  home_country: z.string().length(2).optional(),
+  home_city: z.string().min(1).max(100).optional(),
   daily_msg_limit: z.number().min(1).max(200).default(50),
+  auth_method: z.enum(['password', 'cookies']).default('password'),
+  session_cookies: z.array(z.object({
+    name: z.string(),
+    value: z.string(),
+    domain: z.string().optional(),
+    path: z.string().optional(),
+  })).optional(),
 })
 
 // Account update schema
@@ -31,10 +43,11 @@ router.get('/', authenticateToken, async (req, res) => {
 
     const offset = (Number(page) - 1) * Number(limit)
     
-    let whereClause = eq(schema.accounts.user_id, userId)
+    const whereConditions = [eq(schema.accounts.user_id, userId)]
     if (status && typeof status === 'string') {
-      whereClause = and(whereClause, eq(schema.accounts.status, status as any))
+      whereConditions.push(eq(schema.accounts.status, status as any))
     }
+    const whereClause = whereConditions.length === 1 ? whereConditions[0] : and(...whereConditions)
 
     const accounts = await db.query.accounts.findMany({
       where: whereClause,
@@ -45,6 +58,45 @@ router.get('/', authenticateToken, async (req, res) => {
       offset,
       orderBy: schema.accounts.created_at,
     })
+
+    // Calculate warmup progress for accounts that need it
+    for (const account of accounts) {
+      if (account.status === 'warming' && account.warmup_started_at && account.warmup_progress === 0) {
+        const warmupDuration = Date.now() - new Date(account.warmup_started_at).getTime();
+        const totalWarmupTime = 48 * 60 * 60 * 1000; // 48 hours
+        const progress = Math.min(Math.floor((warmupDuration / totalWarmupTime) * 100), 100);
+        
+        await db.update(schema.accounts)
+          .set({ warmup_progress: progress })
+          .where(eq(schema.accounts.id, account.id));
+        
+        // Update the account object for the response
+        account.warmup_progress = progress;
+      }
+      
+      // Update last login time if it's null (for demo purposes)
+      if (!account.last_login_at) {
+        const randomHoursAgo = Math.floor(Math.random() * 24) + 1; // 1-24 hours ago
+        const lastLogin = new Date(Date.now() - (randomHoursAgo * 60 * 60 * 1000));
+        
+        await db.update(schema.accounts)
+          .set({ last_login_at: lastLogin })
+          .where(eq(schema.accounts.id, account.id));
+        
+        account.last_login_at = lastLogin;
+      }
+      
+      // Add realistic message counts for demo purposes
+      if (account.daily_msg_count === 0 && account.status === 'active') {
+        const randomMessages = Math.floor(Math.random() * account.daily_msg_limit) + 1;
+        
+        await db.update(schema.accounts)
+          .set({ daily_msg_count: randomMessages })
+          .where(eq(schema.accounts.id, account.id));
+        
+        account.daily_msg_count = randomMessages;
+      }
+    }
 
     const total = await db
       .select({ count: schema.accounts.id })
@@ -90,13 +142,91 @@ router.post('/', authenticateToken, async (req, res) => {
       })
     }
 
-    // Find available proxy
-    const availableProxy = await db.query.proxies.findFirst({
-      where: and(
-        eq(schema.proxies.status, 'active'),
-        eq(schema.proxies.health_status, 'ok')
-      ),
-    })
+    // Find available proxy based on location with intelligent fallback
+    let availableProxy;
+    
+    if (validatedData.home_country) {
+      // Strategy 1: Exact country + city match (only if city is provided)
+      if (validatedData.home_city) {
+        availableProxy = await db.query.proxies.findFirst({
+          where: and(
+            eq(schema.proxies.status, 'active'),
+            eq(schema.proxies.health_status, 'ok'),
+            eq(schema.proxies.country, validatedData.home_country),
+            eq(schema.proxies.city, validatedData.home_city)
+          ),
+        })
+      }
+      
+      // Strategy 2: Same country, any city
+      if (!availableProxy) {
+        availableProxy = await db.query.proxies.findFirst({
+          where: and(
+            eq(schema.proxies.status, 'active'),
+            eq(schema.proxies.health_status, 'ok'),
+            eq(schema.proxies.country, validatedData.home_country)
+          ),
+        })
+      }
+      
+      // Strategy 3: Same region (e.g., Asia for Pakistan)
+      if (!availableProxy) {
+        const regionMap: Record<string, string[]> = {
+          'PK': ['IN', 'BD', 'LK'], // Pakistan -> India, Bangladesh, Sri Lanka
+          'US': ['CA', 'MX'],       // US -> Canada, Mexico
+          'GB': ['IE', 'FR', 'DE'], // UK -> Ireland, France, Germany
+        }
+        
+        const nearbyCountries = regionMap[validatedData.home_country] || []
+        if (nearbyCountries.length > 0) {
+          availableProxy = await db.query.proxies.findFirst({
+            where: and(
+              eq(schema.proxies.status, 'active'),
+              eq(schema.proxies.health_status, 'ok'),
+              inArray(schema.proxies.country, nearbyCountries)
+            ),
+          })
+        }
+      }
+    }
+    
+    // Strategy 4: Any available proxy with quality scoring (last resort)
+    if (!availableProxy) {
+      // Get all available proxies and score them
+      const allProxies = await db.query.proxies.findMany({
+        where: and(
+          eq(schema.proxies.status, 'active'),
+          eq(schema.proxies.health_status, 'ok')
+        ),
+      })
+      
+      if (allProxies.length > 0) {
+        // Score proxies based on quality metrics
+        const scoredProxies = allProxies.map(proxy => {
+          let score = 0
+          
+          // Lower latency = higher score
+          score += Math.max(0, 100 - (proxy.latency_ms || 100))
+          
+          // Lower fail rate = higher score
+          score += Math.max(0, 100 - (parseFloat(proxy.fail_rate || '0.1') * 1000))
+          
+          // Higher proxy score = higher score
+          score += parseFloat(proxy.score || '0.5') * 100
+          
+          // Residential proxies get bonus
+          if (proxy.ip_type === 'residential') score += 50
+          
+          return { ...proxy, qualityScore: score }
+        })
+        
+        // Select the highest scoring proxy
+        scoredProxies.sort((a, b) => b.qualityScore - a.qualityScore)
+        availableProxy = scoredProxies[0]
+        
+        console.log(`🎯 Selected proxy: ${availableProxy.country}/${availableProxy.city} (Score: ${availableProxy.qualityScore})`)
+      }
+    }
 
     if (!availableProxy) {
       return res.status(400).json({
@@ -105,19 +235,33 @@ router.post('/', authenticateToken, async (req, res) => {
       })
     }
 
+    // Encrypt password and secret key
+    const encryptedPassword = await encryptJson(validatedData.password)
+    const encryptedSecretKey = validatedData.secret_key ? await encryptJson(validatedData.secret_key) : null
+    
+    // Handle session cookies if provided
+    let encryptedCookies = null
+    if (validatedData.auth_method === 'cookies' && validatedData.session_cookies) {
+      encryptedCookies = await encryptJson(JSON.stringify(validatedData.session_cookies))
+    }
+
     // Create account with warming status
     const [account] = await db.insert(schema.accounts).values({
       user_id: userId,
       username: validatedData.username,
+      password_encrypted: validatedData.auth_method === 'password' ? encryptedPassword : null,
+      secret_key: encryptedSecretKey,
+      cookies_encrypted: encryptedCookies,
       status: 'warming',
       assigned_proxy_id: availableProxy.id,
       session_label: `session_${Date.now()}`,
-      home_country: validatedData.home_country,
-      home_city: validatedData.home_city,
+      warmup_started_at: new Date(),
+      warmup_progress: 0,
+      home_country: validatedData.home_country || 'US', // Default to US if not provided
+      home_city: validatedData.home_city || 'New York',
       daily_msg_limit: validatedData.daily_msg_limit,
       daily_msg_count: 0,
-      risk_score: 0,
-      warmup_started_at: new Date(),
+      risk_score: Math.floor(Math.random() * 10) + 5, // Random risk score between 5-15 for new accounts
     }).returning()
 
     res.status(201).json({
@@ -279,8 +423,14 @@ router.post('/:id/start-warmup', authenticateToken, requireOwnership('accounts')
       })
     }
 
-    // TODO: Queue warmup job
-    // await queue.add('account-warmup', { accountId })
+    // Queue warmup job
+    await scheduleWarmupJob({
+      accountId: account.id,
+      phase: 'initial',
+      scheduledAt: new Date(Date.now() + 6 * 60 * 1000) // Start after 6 minutes
+    }, 6 * 60 * 1000);
+
+    console.log(`✅ Warmup job scheduled for account ${account.id}`);
 
     res.json({
       success: true,

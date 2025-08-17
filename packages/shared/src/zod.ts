@@ -263,7 +263,7 @@ export const AutomationStatsSchema = z.object({
 // Queue Job schemas
 export const WarmupJobSchema = z.object({
   account_id: z.number(),
-  phase: z.enum([0, 1, 2]),
+  phase: z.number().min(0).max(2),
   scheduled_at: z.date(),
 });
 

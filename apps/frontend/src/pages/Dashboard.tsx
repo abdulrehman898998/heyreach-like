@@ -1,75 +1,126 @@
-import { useAuth } from '../contexts/AuthContext'
+import React from 'react'
+import { Link } from 'react-router-dom'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card'
+import { Button } from '../components/ui/Button'
 
 export default function Dashboard() {
-  const { user, logout } = useAuth()
+  const stats = [
+    {
+      title: 'Instagram Accounts',
+      value: '0',
+      description: 'Connected accounts',
+      icon: '👤',
+      trend: '0%',
+      link: '/accounts',
+      color: 'bg-blue-50 border-blue-200'
+    },
+    {
+      title: 'Total Leads',
+      value: '0',
+      description: 'Imported leads',
+      icon: '📋',
+      trend: '0%',
+      link: '/leads',
+      color: 'bg-green-50 border-green-200'
+    },
+    {
+      title: 'Active Campaigns',
+      value: '0',
+      description: 'Running campaigns',
+      icon: '🚀',
+      trend: '0%',
+      link: '/campaigns',
+      color: 'bg-purple-50 border-purple-200'
+    },
+    {
+      title: 'Messages Sent',
+      value: '0',
+      description: 'Today',
+      icon: '💬',
+      trend: '0%',
+      link: '/campaigns',
+      color: 'bg-orange-50 border-orange-200'
+    }
+  ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-semibold text-gray-900">HeyReach</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-700">{user?.email}</span>
-              <button
-                onClick={logout}
-                className="btn-secondary text-sm"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+    <div className="space-y-6">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {stats.map((stat, index) => (
+          <Link key={stat.title} to={stat.link} className="block group">
+            <Card className={`hover:shadow-sm transition-shadow border ${stat.color} h-full`}>
+              <CardContent className="p-4 h-full flex flex-col">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-lg">{stat.icon}</span>
+                  <span className="text-xs font-medium text-gray-500">
+                    {stat.trend}
+                  </span>
+                </div>
+                <div className="flex-1">
+                  <p className="text-xl font-semibold text-gray-900 mb-1">{stat.value}</p>
+                  <p className="text-sm font-medium text-gray-700 mb-1">{stat.title}</p>
+                  <p className="text-xs text-gray-500">{stat.description}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="card">
-              <h3 className="text-lg font-medium text-gray-900">Accounts</h3>
-              <p className="text-3xl font-bold text-primary-600">2</p>
-              <p className="text-sm text-gray-500">Active Instagram accounts</p>
-            </div>
-            
-            <div className="card">
-              <h3 className="text-lg font-medium text-gray-900">Campaigns</h3>
-              <p className="text-3xl font-bold text-primary-600">1</p>
-              <p className="text-sm text-gray-500">Active campaigns</p>
-            </div>
-            
-            <div className="card">
-              <h3 className="text-lg font-medium text-gray-900">Leads</h3>
-              <p className="text-3xl font-bold text-primary-600">3</p>
-              <p className="text-sm text-gray-500">Total leads</p>
-            </div>
-            
-            <div className="card">
-              <h3 className="text-lg font-medium text-gray-900">Messages</h3>
-              <p className="text-3xl font-bold text-primary-600">12</p>
-              <p className="text-sm text-gray-500">Sent today</p>
-            </div>
-          </div>
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Quick Actions */}
+        <Card className="border border-gray-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Quick Actions</CardTitle>
+            <CardDescription className="text-sm">Get started with common tasks</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Link to="/accounts" className="block">
+              <Button variant="outline" className="w-full justify-start h-9 text-sm">
+                <span className="mr-2">➕</span>
+                <div className="text-left">
+                  <div className="font-medium text-gray-700">Add Instagram Account</div>
+                  <div className="text-xs text-gray-500">Connect a new account</div>
+                </div>
+              </Button>
+            </Link>
+            <Link to="/leads" className="block">
+              <Button variant="outline" className="w-full justify-start h-9 text-sm">
+                <span className="mr-2">📥</span>
+                <div className="text-left">
+                  <div className="font-medium text-gray-700">Import Leads</div>
+                  <div className="text-xs text-gray-500">Upload CSV file</div>
+                </div>
+              </Button>
+            </Link>
+            <Link to="/campaigns" className="block">
+              <Button variant="outline" className="w-full justify-start h-9 text-sm">
+                <span className="mr-2">🎯</span>
+                <div className="text-left">
+                  <div className="font-medium text-gray-700">Create Campaign</div>
+                  <div className="text-xs text-gray-500">Start outreach</div>
+                </div>
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
 
-          <div className="mt-8">
-            <div className="card">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Welcome to HeyReach!</h2>
-              <p className="text-gray-600 mb-4">
-                This is a demo dashboard for the HeyReach Instagram DM automation platform.
-                The backend API is fully functional and ready for testing.
-              </p>
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-                <h3 className="text-sm font-medium text-blue-800 mb-2">Test Credentials:</h3>
-                <p className="text-sm text-blue-700">
-                  Email: <code className="bg-blue-100 px-1 rounded">test@heyreach.com</code><br />
-                  Password: <code className="bg-blue-100 px-1 rounded">password123</code>
-                </p>
-              </div>
+        {/* Recent Activity */}
+        <Card className="border border-gray-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Recent Activity</CardTitle>
+            <CardDescription className="text-sm">Latest system events</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8">
+              <div className="text-gray-400 mb-2 text-2xl">📊</div>
+              <p className="text-sm text-gray-500">No recent activity</p>
             </div>
-          </div>
-        </div>
-      </main>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

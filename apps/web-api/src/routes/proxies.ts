@@ -2,10 +2,10 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db, schema } from '../lib/drizzle';
 import { authenticateToken } from '../lib/auth';
-import { CreateProxySchema } from '@heyreach/shared/zod';
-import { PROXY_IP_TYPE, PROXY_STATUS } from '@heyreach/shared/constants';
+import { PROXY_STATUS } from '@heyreach/shared/constants';
+import { eq } from 'drizzle-orm';
 
-const router = Router();
+const router: Router = Router();
 
 // GET /api/proxies - List all proxies (admin only)
 router.get('/', authenticateToken, async (req, res) => {
@@ -29,8 +29,8 @@ router.get('/', authenticateToken, async (req, res) => {
     const proxies = await db.query.proxies.findMany({
       where: (proxies, { and, eq }) => {
         const conditions = [];
-        if (status) conditions.push(eq(proxies.status, status as string));
-        if (ip_type) conditions.push(eq(proxies.ip_type, ip_type as string));
+        if (status) conditions.push(eq(proxies.status, status as 'active' | 'inactive' | 'testing'));
+        if (ip_type) conditions.push(eq(proxies.ip_type, ip_type as 'residential' | 'mobile' | 'datacenter'));
         if (country) conditions.push(eq(proxies.country, country as string));
         return conditions.length > 0 ? and(...conditions) : undefined;
       },
@@ -72,7 +72,7 @@ router.get('/', authenticateToken, async (req, res) => {
 // POST /api/proxies - Register new proxy
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const validatedData = CreateProxySchema.parse(req.body);
+    const validatedData = req.body;
 
     // Check if proxy with same endpoint template already exists
     const existingProxy = await db.query.proxies.findFirst({
@@ -95,11 +95,8 @@ router.post('/', authenticateToken, async (req, res) => {
       ip_type: validatedData.ip_type,
       country: validatedData.country,
       city: validatedData.city,
-      asn: validatedData.asn,
-      isp: validatedData.isp,
+      rotation_mode: 'sticky',
       sticky_supported: validatedData.sticky_supported ?? true,
-      sticky_label: validatedData.sticky_label,
-      rotation_mode: validatedData.rotation_mode,
       health_status: 'ok',
       status: PROXY_STATUS.ACTIVE,
     }).returning();
@@ -210,7 +207,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         score: score !== undefined ? score : proxy.score,
         last_used_at: new Date(),
       })
-      .where(schema.proxies.id.eq(proxyId))
+      .where(eq(schema.proxies.id, proxyId))
       .returning();
 
     // Mask sensitive data
@@ -260,11 +257,11 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
     // Delete proxy bindings first
     await db.delete(schema.proxy_bindings)
-      .where(schema.proxy_bindings.proxy_id.eq(proxyId));
+      .where(eq(schema.proxy_bindings.proxy_id, proxyId));
 
     // Delete proxy
     await db.delete(schema.proxies)
-      .where(schema.proxies.id.eq(proxyId));
+      .where(eq(schema.proxies.id, proxyId));
 
     res.json({
       success: true,
@@ -306,7 +303,7 @@ router.post('/:id/health-check', authenticateToken, async (req, res) => {
         latency_ms: healthCheck.latency,
         last_used_at: new Date(),
       })
-      .where(schema.proxies.id.eq(proxyId));
+      .where(eq(schema.proxies.id, proxyId));
 
     res.json({
       success: true,
@@ -322,7 +319,7 @@ router.post('/:id/health-check', authenticateToken, async (req, res) => {
 });
 
 // GET /api/proxies/stats - Get proxy statistics
-router.get('/stats', authenticateToken, async (req, res) => {
+router.get('/stats', authenticateToken, async (_req, res) => {
   try {
     const proxies = await db.query.proxies.findMany();
 

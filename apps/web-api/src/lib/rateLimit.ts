@@ -1,6 +1,7 @@
 import { redis } from './redis';
 import { ACTIVE_CONFIG, WARMUP_CONFIG, REDIS_KEYS } from '@heyreach/shared/constants';
 import { ACCOUNT_STATUS } from '@heyreach/shared/constants';
+import rateLimit from 'express-rate-limit';
 
 // Check if account can send DM based on daily limit
 export async function canSendDM(accountId: number, dailyCap: number = ACTIVE_CONFIG.DAILY_MSG_LIMIT): Promise<boolean> {
@@ -71,7 +72,6 @@ export function createRateLimiter(
   windowMs: number = 15 * 60 * 1000, // 15 minutes
   maxRequests: number = 100
 ) {
-  const rateLimit = require('express-rate-limit');
   
   return rateLimit({
     windowMs,
@@ -98,7 +98,6 @@ export function createAccountRateLimiter(
   windowMs: number = 60 * 1000, // 1 minute
   maxRequests: number = 10
 ) {
-  const rateLimit = require('express-rate-limit');
   
   return rateLimit({
     windowMs,

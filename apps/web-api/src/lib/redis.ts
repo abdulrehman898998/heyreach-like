@@ -4,9 +4,12 @@ import env from '../env';
 // Create Redis client
 export const redis = new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: 3,
-  retryDelayOnFailover: 100,
-  enableReadyCheck: false,
-  maxLoadingTimeout: 10000,
+  retryStrategy: (times) => {
+    if (times > 3) {
+      return null;
+    }
+    return Math.min(times * 50, 1000);
+  },
 });
 
 // Health check function

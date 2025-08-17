@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import axios from 'axios'
 
+// Configure API base URL
+const API_BASE = 'http://localhost:8080'
+
+// Axios base setup
+axios.defaults.timeout = 10000
+
 interface User {
   id: number
   email: string
@@ -29,12 +35,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const token = localStorage.getItem('token')
       if (token) {
-        const response = await axios.get('/api/auth/me', {
+        const response = await axios.get(`${API_BASE}/api/auth/me`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         setUser(response.data.data)
       }
     } catch (error) {
+      console.error('Authentication check failed:', error)
       localStorage.removeItem('token')
     } finally {
       setLoading(false)
@@ -42,10 +49,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const login = async (email: string, password: string) => {
-    const response = await axios.post('/api/auth/login', { email, password })
-    const { token, user } = response.data.data
-    localStorage.setItem('token', token)
-    setUser(user)
+    try {
+      const response = await axios.post(`${API_BASE}/api/auth/login`, { email, password })
+      const { token, user } = response.data.data
+      localStorage.setItem('token', token)
+      setUser(user)
+    } catch (error) {
+      console.error('Login failed:', error)
+      throw error
+    }
   }
 
   const logout = () => {
@@ -54,10 +66,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const register = async (email: string, password: string) => {
-    const response = await axios.post('/api/auth/register', { email, password })
-    const { token, user } = response.data.data
-    localStorage.setItem('token', token)
-    setUser(user)
+    try {
+      const response = await axios.post(`${API_BASE}/api/auth/register`, { email, password })
+      const { token, user } = response.data.data
+      localStorage.setItem('token', token)
+      setUser(user)
+    } catch (error) {
+      console.error('Registration failed:', error)
+      throw error
+    }
   }
 
   return (

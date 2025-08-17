@@ -14,7 +14,7 @@ import leadsRouter from './routes/leads';
 import notificationsRouter from './routes/notifications';
 import proxiesRouter from './routes/proxies';
 
-const app = express();
+const app: express.Application = express();
 const PORT = env.PORT || 3000;
 
 // Security middleware
@@ -31,11 +31,17 @@ app.use(helmet({
 
 // CORS configuration
 app.use(cors({
-  origin: env.APP_URL,
+  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-User-ID'],
 }));
+
+// Request logging middleware
+app.use((req, _res, next) => {
+  console.log(`🌐 ${req.method} ${req.path} - Origin: ${req.headers.origin} - User-Agent: ${req.headers['user-agent']?.substring(0, 50)}...`);
+  next();
+});
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -45,7 +51,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(createRateLimiter());
 
 // Health check endpoint
-app.get('/health', async (req, res) => {
+app.get('/health', async (_req, res) => {
   try {
     // Check database connection
     const { db } = await import('./lib/drizzle');
@@ -110,7 +116,7 @@ app.get('/api/automation/stats', authenticateToken, async (req, res) => {
 });
 
 // Error handling middleware
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Unhandled error:', err);
   
   res.status(err.status || 500).json({
@@ -120,7 +126,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use('*', (_req, res) => {
   res.status(404).json({
     success: false,
     error: 'Endpoint not found'

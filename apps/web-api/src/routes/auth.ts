@@ -2,9 +2,18 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { db, schema } from '../lib/drizzle';
 import { hashPassword, verifyPassword, generateJWT } from '../lib/crypto';
-import { CreateUserSchema, LoginSchema } from '@heyreach/shared/zod';
 
-const router = Router();
+const CreateUserSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+});
+
+const LoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string(),
+});
+
+const router: Router = Router();
 
 // POST /api/auth/register - User registration
 router.post('/register', async (req, res) => {
@@ -61,7 +70,8 @@ router.post('/register', async (req, res) => {
     console.error('Failed to register user:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to register user'
+      error: 'Failed to register user',
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });
@@ -69,6 +79,8 @@ router.post('/register', async (req, res) => {
 // POST /api/auth/login - User login
 router.post('/login', async (req, res) => {
   try {
+    console.log('🔐 Login attempt:', { email: req.body.email, timestamp: new Date().toISOString() });
+    
     const validatedData = LoginSchema.parse(req.body);
 
     // Find user
@@ -77,6 +89,7 @@ router.post('/login', async (req, res) => {
     });
 
     if (!user) {
+      console.log('❌ Login failed: User not found for email:', validatedData.email);
       return res.status(401).json({
         success: false,
         error: 'Invalid email or password'
@@ -87,6 +100,7 @@ router.post('/login', async (req, res) => {
     const isValidPassword = await verifyPassword(validatedData.password, user.password_hash);
 
     if (!isValidPassword) {
+      console.log('❌ Login failed: Invalid password for user:', user.email);
       return res.status(401).json({
         success: false,
         error: 'Invalid email or password'
@@ -98,6 +112,8 @@ router.post('/login', async (req, res) => {
       id: user.id,
       email: user.email
     });
+
+    console.log('✅ Login successful for user:', user.email, 'User ID:', user.id);
 
     res.json({
       success: true,
@@ -111,6 +127,8 @@ router.post('/login', async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('❌ Login error:', error);
+    
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         success: false,

@@ -40,7 +40,10 @@ export const accounts = pgTable('accounts', {
   id: serial('id').primaryKey(),
   user_id: integer('user_id').notNull().references(() => users.id),
   username: text('username').notNull(),
-  status: text('status', { enum: ['warming', 'active', 'paused', 'needs_manual_verification'] }).default('warming').notNull(),
+  password_encrypted: text('password_encrypted'), // Encrypted Instagram password
+  secret_key: text('secret_key'), // 2FA secret key for TOTP
+  backup_codes: jsonb('backup_codes').$type<string[]>(), // Array of backup codes
+  status: text('status', { enum: ['warming', 'active', 'paused', 'needs_manual_verification', 'needs_2fa'] }).default('warming').notNull(),
   assigned_proxy_id: integer('assigned_proxy_id').references(() => proxies.id),
   session_label: text('session_label'),
   home_country: text('home_country').notNull(), // ISO-2
@@ -49,6 +52,7 @@ export const accounts = pgTable('accounts', {
   device_fingerprint_json: jsonb('device_fingerprint_json'),
   warmup_started_at: timestamp('warmup_started_at'),
   warmup_completed_at: timestamp('warmup_completed_at'),
+  warmup_progress: integer('warmup_progress').default(0).notNull(),
   daily_msg_limit: integer('daily_msg_limit').default(50).notNull(),
   daily_msg_count: integer('daily_msg_count').default(0).notNull(),
   last_msg_reset_at: timestamp('last_msg_reset_at'),
@@ -143,7 +147,7 @@ export const selector_registry = pgTable('selector_registry', {
   source: text('source', { enum: ['baseline', 'mcp', 'manual'] }).notNull(),
   success_count: integer('success_count').default(0).notNull(),
   fail_count: integer('fail_count').default(0).notNull(),
-  score: numeric('score').default(0).notNull(),
+  score: numeric('score').default('0').notNull(),
   last_success_at: timestamp('last_success_at'),
   last_fail_at: timestamp('last_fail_at'),
   created_at: timestamp('created_at').defaultNow().notNull(),
